@@ -28,6 +28,18 @@ The physical unit is exactly one of these. Confirm on device with
   escaped strings (e.g. `"8\aC"`) and a text edit then corrupts the tree. See
   `docs/02-dtb-workflow.md`.
 
+## Documentation
+
+- [docs/01-secure-boot-and-signing.md](docs/01-secure-boot-and-signing.md) - the boot chain of trust, the test-key finding, fuse-state check, and both re-sign paths (qtestsign unfused, sectools fused).
+- [docs/02-dtb-workflow.md](docs/02-dtb-workflow.md) - why the AOSP dtc, the appended-FDT container, round-trip fidelity, add/remove-node editing, the abie repack path.
+- [docs/03-device-inventory.md](docs/03-device-inventory.md) - the 15 device trees, per-SoC msm-id, firmware signing table, committed stock artifacts.
+- [docs/04-overclocking-research.md](docs/04-overclocking-research.md) - the deep GPU/CPU/DDR research: full pwrlevel enumerations, voltage corners, and where each ceiling lives.
+- [docs/05-flashing-and-recovery.md](docs/05-flashing-and-recovery.md) - A/B partition map, fastboot and EDL flashing, vbmeta handling, one-shot orchestration, recovery kit.
+- [docs/06-cpucp-riscv-lut.md](docs/06-cpucp-riscv-lut.md) - RISC-V disassembly of cpucp.elf proving the CPU LUT is not there.
+- [docs/07-xbl-epss-lut.md](docs/07-xbl-epss-lut.md) - ARM64/UEFI analysis: no static EPSS LUT in the images, ClockDxe attribution, the live-LUT route.
+- [docs/08-adjustable-levers.md](docs/08-adjustable-levers.md) - operator-facing summary of every adjustable lever, safest to hardest.
+- [PROGRESS.md](PROGRESS.md) - running ledger of done vs open work.
+
 ## Layout
 
 ```
@@ -39,15 +51,18 @@ patches/          abie-use-aosp-dtc.patch  (make Android_boot_image_editor use A
 stock/firmware/   stock XBL/ABL/TZ/... ELF+MBN as shipped
 stock/dtb/        stock device trees (split) + reference decompiles
 stock/certs/      the device's own extracted signing chain (leaf/CA/root)
+tools/fw/         firmware RE tools (scan_freq_tables, cpucp/xbl disasm, extract_uefi, epss_lut)
+third_party/abie  the PATCHED Android_boot_image_editor (source, vendored)
+third_party/sectools  genuine QTI sectools + secp384r1 test keys (vendored)
 modified/         modified images produced by the tools
 docs/             the writeups
-scripts/          setup.sh (fetch/build external tools)
+scripts/          setup.sh (builds the vendored abie), selftest.sh, overclock + flash scripts
 ```
 
 ## Quick start
 
 ```
-scripts/setup.sh                                   # build AOSP dtc, clone abie + sectools
+scripts/setup.sh                                   # build the vendored abie (nothing is fetched)
 tools/dtb/verify_roundtrip.sh stock/dtb/vendor_boot.dtb-section   # prove DTB round-trip
 tools/signing/inspect_mbn.py stock/firmware/abl.elf              # read signing identity
 scripts/selftest.sh                                             # regression-test the toolchain
