@@ -63,6 +63,30 @@ echo "[7] qtestsign present and importable"
 python3 -c "import sys; sys.path.insert(0,'tools/signing/qtestsign'); import mbn" 2>/dev/null \
   && ok "qtestsign import" || bad "qtestsign import"
 
+echo "[7b] re-sign of devcfg/cpucp/aop yields valid ELF, payload byte-preserved"
+resign_ok=1
+for pair in devcfg:devcfg.mbn cpucp:cpucp.elf aop:aop.mbn; do
+  typ=${pair%%:*}; f=${pair##*:}
+  scripts/resign_firmware.sh "$typ" "stock/firmware/$f" "$tmp/$f.signed" >/dev/null 2>&1
+  [ -f "$tmp/$f.signed" ] || { resign_ok=0; continue; }
+  python3 - "stock/firmware/$f" "$tmp/$f.signed" <<'PY' || resign_ok=0
+import sys, struct
+def loads(fn):
+    d=open(fn,'rb').read(); is64=d[4]==2
+    if is64: phoff=struct.unpack('<Q',d[32:40])[0]; ent=struct.unpack('<H',d[54:56])[0]; num=struct.unpack('<H',d[56:58])[0]
+    else: phoff=struct.unpack('<I',d[28:32])[0]; ent=struct.unpack('<H',d[42:44])[0]; num=struct.unpack('<H',d[44:46])[0]
+    out=[]
+    for i in range(num):
+        o=phoff+i*ent
+        if is64: t=struct.unpack('<I',d[o:o+4])[0]; off=struct.unpack('<Q',d[o+8:o+16])[0]; sz=struct.unpack('<Q',d[o+32:o+40])[0]; fl=struct.unpack('<I',d[o+4:o+8])[0]
+        else: t=struct.unpack('<I',d[o:o+4])[0]; off=struct.unpack('<I',d[o+4:o+8])[0]; sz=struct.unpack('<I',d[o+16:o+20])[0]; fl=struct.unpack('<I',d[o+24:o+28])[0]
+        if t==1 and not (fl & 0xFF000000): out.append(d[off:off+sz])
+    return out
+sys.exit(0 if loads(sys.argv[1])==loads(sys.argv[2]) else 1)
+PY
+done
+[ "$resign_ok" = 1 ] && ok "firmware re-sign non-destructive" || bad "firmware re-sign"
+
 echo "[8] secp384r1 test keys committed (self-contained signing)"
 [ -f tools/signing/testkeys-secp384r1/qpsa_rootca.key ] && ok "test keys present" || bad "test keys missing"
 

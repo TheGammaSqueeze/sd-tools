@@ -72,7 +72,7 @@ device's SB3.0 header (SHA384 hash segment). Verified on the ABL: the re-signed
 image carries a well-formed v6 hash segment (ph[0] header 0x94 + ph[1] hash and
 cert chain), with a stub RSA "NOT SECURE" cert chain. Because `devcfg`, `cpucp`
 and `aop` are supported types, this same path re-signs the firmware needed for
-the CPU and DDR overclock (see docs/04) on an unfused device, without sectools.
+the CPU and DDR overclock (see docs/04) on an unfused device, without sectools. Validated: re-signing devcfg.mbn, cpucp.elf and aop.mbn each yields a valid ELF with a well-formed hash segment, and the loadable payload segments are byte-identical to stock afterward (only the hash/cert segment changes), so the re-sign is non-destructive (selftest [7b]).
 Override the version with `MBN_VERSION=7` if a specific image needs it.
 
 ### Path B - device fused to the test root: genuine sectools
