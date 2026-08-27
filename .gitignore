@@ -6,3 +6,6 @@
 __pycache__/
 /tmp/
 *.log
+
+# Decompressed UEFI FV (regenerate via tools/fw/extract_uefi.sh)
+/modified/uefi_ext/

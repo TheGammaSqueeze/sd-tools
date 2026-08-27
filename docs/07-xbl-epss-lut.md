@@ -130,3 +130,43 @@ freq_kHz = lval*19200; VOLT_LUT[i] = base + 0x200 + i*4. Dump is read-only and
 safe; writes may be re-latched by the EPSS or ignored, and a frequency above the
 CPRh voltage envelope can hang the CPU, so read first and bump conservatively.
 This sidesteps editing and re-signing XBL entirely.
+
+## Update: the CPU clock plan is in uefi.elf ClockDxe (decompressed)
+
+Correction and progress on the "compressed loader" note above. xbl_s.melf is only
+the ~115KB XBL SEC loader (2 small LOAD segments, ph0 is structured config data
+at entropy 5.52, the rest of the file is the MBN hash/cert blob). The CPU clock
+bring-up (OSM/APSS) is in uefi.elf, the XBL Core, which is a UEFI firmware volume
+(FVH at file 0x1000) whose body is one LZMA-compressed GUIDed section.
+
+`tools/fw/extract_uefi.sh` carves the FV and runs uefi-firmware-parser, which
+decompresses the LZMA volume and dumps 553 files. The decompressed content
+confirms the CPU clock path:
+
+- CPU clock is the APSS Zonda Evo PLL: strings `APCS_CPU_APCS_CPU_CM_PLL_ZONDA_EVO`,
+  `apss_cc_l3_pre_acd_debug_div_clk_src`, `APSS_KRYO_CLK_CTL`, `APSS_ACD`.
+- The clock driver is ClockDxe, FFS GUID `4db5dea6-5302-4d1a-8a82-677a683b0d29`
+  (extracted `.../file-4db5dea6.../section1.pe`, 172 KB AArch64 PE).
+
+Inside ClockDxe section1.pe the frequency configs are `{UINT64 nFreqHz, UINT32
+cfg, ...}` structs (freq in Hz, high dword 0, then a source/div config dword such
+as 0x00400280). CPU-range entries found:
+
+| PE offset | freq (MHz) |
+|-----------|-----------|
+| 0x16950 | 1518 |
+| 0x16998 | 1824 |
+| 0x182c0 | 1530 |
+| 0x18308 | 1700 |
+| 0x18350 | 1910 |
+| 0x18398 | 2020 |
+
+Status: these are confirmed to be ClockDxe frequency-config entries in the
+CPU/L3 range, but which clock domain each belongs to (APSS CPU cluster vs L3 vs a
+bus) is not yet confirmed; that needs tracing the parent HAL clock-domain struct
+that references the table. Editing a CPU entry means bumping its nFreqHz AND the
+PLL L-value/config dword, then re-signing uefi.elf and reflashing the xbl
+partition, staying within the CPRh voltage envelope. This is the concrete
+static-firmware CPU-OC path; the on-device epss_lut.sh route remains the simpler
+alternative. The decompressed tree is regenerable with extract_uefi.sh and is
+gitignored to keep the repo small.
