@@ -117,6 +117,10 @@ scripts/repack_vendor_boot.sh /mnt/c/55g1/.../vendor_boot.img parrot 1000 \
   the default operating point is unchanged. Safer: the stock levels stay exactly
   as validated and the device only reaches the new level under full load. Both
   are exercised against the Parrot tree and recompile cleanly.
+- `tools/dtb/remove_gpu_level.py <in.dts> <out.dts> [--lowest|--top|--index=N]`
+  removes a pwrlevel, renumbers reg/@N contiguously and clamps initial-pwrlevel.
+  add-then-remove-top is exactly reversible to stock (verified in selftest), which
+  demonstrates both add-node and remove-node produce device-valid trees.
 
 ## AVB / vbmeta note
 

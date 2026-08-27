@@ -48,6 +48,17 @@ else
   bad "add_gpu_level recompile"
 fi
 
+echo "[6b] remove_gpu_level.py: remove-node recompiles and add/remove is reversible"
+python3 tools/dtb/add_gpu_level.py "$tmp/base.dts" 1000 "$tmp/rvadd.dts" >/dev/null 2>&1
+python3 tools/dtb/remove_gpu_level.py "$tmp/rvadd.dts" "$tmp/rvrm.dts" --top >/dev/null 2>&1
+if "$DTC" -q -I dts -O dtb "$tmp/rvrm.dts" -o "$tmp/rvrm.dtb" 2>/dev/null \
+   && cmp -s <("$DTC" -q -I dtb -O dts stock/dtb/06.dtb 2>/dev/null) \
+            <("$DTC" -q -I dtb -O dts "$tmp/rvrm.dtb" 2>/dev/null); then
+  ok "remove-node valid + add/remove reversible"
+else
+  bad "remove-node or reversibility"
+fi
+
 echo "[7] qtestsign present and importable"
 python3 -c "import sys; sys.path.insert(0,'tools/signing/qtestsign'); import mbn" 2>/dev/null \
   && ok "qtestsign import" || bad "qtestsign import"
