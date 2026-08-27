@@ -43,7 +43,6 @@ the package. `ro.board.platform=parrot` is only the platform family name.
 - [docs/08-adjustable-levers.md](docs/08-adjustable-levers.md) - operator-facing summary of every adjustable lever, safest to hardest.
 - [docs/09-gpu-driver-comparison.md](docs/09-gpu-driver-comparison.md) - stock Qualcomm `vulkan.adreno.so` (v0615.91) vs Mesa Turnip 26.1.1: extraction, side-by-side, and the drop-in / build-our-own opportunity.
 - [docs/10-ondevice-recon.md](docs/10-ondevice-recon.md) - live adb recon: the unit is RavelinP (RG 55G1), Android 14, unlocked; real CPU/GPU frequencies; corrections to the Parrot assumption.
-- [docs/11-refresh-flicker.md](docs/11-refresh-flicker.md) - refresh-rate-switch flicker: the non-seamless mode-group cause, a diagnostic script, and fixes (lock rate, group-switch policy, panel dtb VFP dfps).
 - [PROGRESS.md](PROGRESS.md) - running ledger of done vs open work.
 
 ## Layout
