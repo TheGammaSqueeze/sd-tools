@@ -16,12 +16,17 @@ For each qcom,gpu-pwrlevels-N block it:
   - bumps qcom,initial-pwrlevel and qcom,ca-target-pwrlevel by 1 so the default
     operating point is unchanged (the device does not boot at the new level).
 
-The clone keeps the stock qcom,level (voltage corner, normally TURBO 0x1a0),
-qcom,acd-level and the bus votes, so the new level runs at the top validated
-voltage. Raising voltage beyond TURBO is not possible from the DTB.
+By default the clone keeps the stock qcom,level (voltage corner, normally TURBO
+0x1a0), qcom,acd-level and the bus votes, so the new level runs at the top
+validated voltage. The GPU rail's regulator-max is 0xffff, so a higher corner is
+accepted by the regulator; --corner lets you pair the higher frequency with more
+voltage for stability. Whether a corner above the characterized top actually
+delivers more voltage depends on the PMIC corner map, so validate on device;
+requesting an undefined corner may clamp to the top voltage or fail the level.
 
 Usage:
-    add_gpu_level.py <in.dts> <MHz> <out.dts>
+    add_gpu_level.py <in.dts> <MHz> <out.dts> [--corner=TURBO_L1|0x1e0]
+    corners: TURBO 0x1a0, TURBO_L0 0x1c0, TURBO_L1 0x1e0, TURBO_L2 0x200
 
 Work on the AOSP-dtc decompiled DTS (see docs/02). Recompile with the AOSP dtc.
 """
@@ -88,6 +93,13 @@ def process_block(block, new_hex):
     new_node = re.sub(r"qcom,gpu-freq = <0x[0-9a-fA-F]+>",
                       f"qcom,gpu-freq = <{new_hex}>", node)
     new_node = re.sub(r"reg = <(0x[0-9a-fA-F]+|\d+)>", "reg = <0x0>", new_node, count=1)
+    # Optional: raise the new level's voltage corner (qcom,level) above the stock
+    # top. The GPU rail's regulator-max is 0xffff, so a higher corner is accepted;
+    # whether it delivers more voltage depends on the PMIC corner map, so validate
+    # on device. Only the NEW level is changed; stock levels keep their corners.
+    if CORNER is not None:
+        new_node = re.sub(r"qcom,level = <0x[0-9a-fA-F]+>",
+                          f"qcom,level = <{CORNER}>", new_node, count=1)
 
     # Insert the new node right before the (now @1) first level.
     anchor = re.search(r"\n(\s*)qcom,gpu-pwrlevel@1\s*\{", renum)
@@ -106,12 +118,23 @@ def process_block(block, new_hex):
     return renum, True
 
 
+# RPMh voltage corners (see docs/04). Named for the --corner option.
+CORNERS = {"TURBO": 0x1A0, "TURBO_L0": 0x1C0, "TURBO_L1": 0x1E0, "TURBO_L2": 0x200}
+CORNER = None  # module-global set from --corner; None keeps the stock corner
+
+
 def main():
-    if len(sys.argv) != 4:
+    global CORNER
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    for a in sys.argv[1:]:
+        if a.startswith("--corner="):
+            v = a.split("=", 1)[1]
+            CORNER = hex(CORNERS[v]) if v in CORNERS else hex(int(v, 0))
+    if len(args) != 3:
         print(__doc__)
         sys.exit(1)
-    text = open(sys.argv[1]).read()
-    mhz = int(sys.argv[2])
+    text = open(args[0]).read()
+    mhz = int(args[1])
     new_hex = hex(mhz * 1000000)
     spans = find_blocks(text)
     if not spans:
@@ -125,8 +148,9 @@ def main():
         if ok:
             out = out[:s] + new_block + out[e:]
             count += 1
-    open(sys.argv[3], "w").write(out)
-    print(f"added a {mhz} MHz top level ({new_hex}) to {count} speed-bin(s) -> {sys.argv[3]}")
+    open(args[2], "w").write(out)
+    cmsg = f", corner {CORNER}" if CORNER is not None else ""
+    print(f"added a {mhz} MHz top level ({new_hex}{cmsg}) to {count} speed-bin(s) -> {args[2]}")
 
 
 if __name__ == "__main__":

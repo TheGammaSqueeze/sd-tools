@@ -89,7 +89,10 @@ Other bins (fused parts). Only the deltas from bin 0 are shown; lower levels are
 - Bin 3 (`speed-bin 0x8F` = 143), `initial-pwrlevel 0x4`: top = 0x284AF100 = **675 MHz** at NOM.
 - Bin 4 (`speed-bin 0x82` = 130), `initial-pwrlevel 0x3`: top = 0x247A6100 = **611 MHz** at SVS_L2.
 
-Peak silicon-qualified frequency across all Parrot bins: **940 MHz** (bin 0 / default), pinned to TURBO with ACD word 0xA82B5FFD (note this ACD word is unique to the 940 level; every lower level uses the 0x88.. / 0xA8.. 5FFD family).
+Peak silicon-qualified frequency across all Parrot bins: **940 MHz**
+
+Stability note for a NEW level above the stock top: the GPU rail regulators (`rpmh-regulator-cxlvl` / `-gfxlvl`) use `regulator-max-microvolt = <0xffff>`, so they accept RPMh corner levels above the stock TURBO (0x1A0). `add_gpu_level.py --corner=TURBO_L1` (0x1E0) or `TURBO_L2` (0x200) pairs the new higher frequency with a higher voltage request on the NEW level only (stock levels keep their corners). Whether a corner above the characterized top actually delivers more voltage depends on the PMIC corner-to-voltage map and must be validated on device; an undefined corner may clamp to the top voltage or fail the level. Raising the ACD word (`qcom,acd-level`) to match is not derivable from the DTB.
+ (bin 0 / default), pinned to TURBO with ACD word 0xA82B5FFD (note this ACD word is unique to the 940 level; every lower level uses the 0x88.. / 0xA8.. 5FFD family).
 
 ### 1.3 Ravelin (Adreno 613) full enumeration
 
