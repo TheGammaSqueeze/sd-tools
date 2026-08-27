@@ -21,3 +21,6 @@ __pycache__/
 # Regenerable Turnip-swapped vendor images
 /modified/vendor*.img
 vendor_turnip*.img
+
+# abie unpack/pack scratch images (patch scripts copy an image in to unpack)
+/third_party/abie/*.img
