@@ -283,6 +283,11 @@ build). Verified with `readelf`/`strings`; on-device validation still required.
 Deploy it exactly like the Anbernic driver: AdrenoTools per-app injection, or the
 system-wide swap via `scripts/swap_vulkan_turnip.sh gpu/turnip-selfbuilt/vulkan.turnip.so`.
 
+Integration validated: `swap_vulkan_turnip.sh` was run end-to-end with our
+self-built driver, the produced vendor image passes `e2fsck`, its embedded
+`/vendor/lib64/hw/vulkan.adreno.so` is byte-identical to our build, and it carries
+the correct `same_process_hal_file` context. The build and swap scripts compose.
+
 Capability check vs the Anbernic build (confirming our build is complete, not a
 regression): same a702/a725 device support; Vulkan extension coverage 438 (ours,
 26.3.0) vs 420 (Anbernic, 26.1.1), with ZERO extensions present in Anbernic but
