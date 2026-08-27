@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "name": "Turnip Driver by Anbernic G1GEN2",
+  "description": "ANBERNIC G1 GEN2",
+  "author": "Anbernic",
+  "packageVersion": "17",
+  "vendor": "Anbernic",
+  "driverVersion": "Vulkan 1.4",
+  "minApi": 34,
+  "libraryName": "vulkan.turnip.so"
+}

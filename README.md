@@ -38,6 +38,7 @@ The physical unit is exactly one of these. Confirm on device with
 - [docs/06-cpucp-riscv-lut.md](docs/06-cpucp-riscv-lut.md) - RISC-V disassembly of cpucp.elf proving the CPU LUT is not there.
 - [docs/07-xbl-epss-lut.md](docs/07-xbl-epss-lut.md) - ARM64/UEFI analysis: no static EPSS LUT in the images, ClockDxe attribution, the live-LUT route.
 - [docs/08-adjustable-levers.md](docs/08-adjustable-levers.md) - operator-facing summary of every adjustable lever, safest to hardest.
+- [docs/09-gpu-driver-comparison.md](docs/09-gpu-driver-comparison.md) - stock Qualcomm `vulkan.adreno.so` (v0615.91) vs Mesa Turnip 26.1.1: extraction, side-by-side, and the drop-in / build-our-own opportunity.
 - [PROGRESS.md](PROGRESS.md) - running ledger of done vs open work.
 
 ## Layout
