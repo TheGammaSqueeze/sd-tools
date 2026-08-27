@@ -85,10 +85,13 @@ Rules for adding or removing nodes so the tree stays valid:
 
 `patches/abie-use-aosp-dtc.patch` makes cfig's Android_boot_image_editor honour
 an `AOSP_DTC` environment variable so its unpack/repack uses our AOSP dtc instead
-of the distro dtc. Apply it after `scripts/setup.sh` clones abie:
+of the distro dtc. The patched editor is vendored at `third_party/abie` (already
+patched, built by `scripts/setup.sh`; selftest verifies it equals upstream plus
+this patch). To apply the patch to a fresh upstream clone instead:
+`cd <abie> && git apply <repo>/patches/abie-use-aosp-dtc.patch`.
 
 ```
-cd external/abie && git apply ../../patches/abie-use-aosp-dtc.patch
+cd third_party/abie
 export AOSP_DTC=$(pwd)/../../prebuilt/dtc-aosp-x86_64
 ./gradlew unpack   # dtb decompiles with AOSP dtc (gpu-freq shows as <0x..>)
 # edit build/unzip_boot/dtb.N.dts
