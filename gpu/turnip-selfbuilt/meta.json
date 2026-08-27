@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "name": "Turnip a702 (sd-tools build, Android 12 / API 31)",
+  "description": "Mesa Turnip built from mesa main for SM6450 Parrot / Adreno 710 (a702), KGSL, targeting Android 12 sdk32",
+  "author": "sd-tools",
+  "packageVersion": "1",
+  "vendor": "Mesa",
+  "driverVersion": "Vulkan 1.4 (Mesa 26.3.0-devel)",
+  "minApi": 31,
+  "libraryName": "vulkan.turnip.so"
+}

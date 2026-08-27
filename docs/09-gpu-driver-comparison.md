@@ -192,6 +192,39 @@ Turnip is upstream Mesa, so we can build and tune it for a702/gen7 ourselves:
 - **Cost:** Turnip on a702 is a first-class Mesa target, so this is a normal Mesa
   build, not a port. The main effort is packaging + per-title validation.
 
+### Done: our own Turnip build
+
+`scripts/build_turnip.sh` cross-builds it and `gpu/turnip-selfbuilt/` holds the
+result. Details of what was done:
+
+- Toolchain: Android NDK r27c clang 18, meson 1.4 / ninja, `glslangValidator`
+  built from source (needed for the ASTC/BVH meta shaders).
+- Cross file targets `aarch64-linux-android31` (**API 31 = Android 12**), which
+  removes the Anbernic build's minApi-34-vs-Android-12 mismatch, and static-links
+  libc++ so the driver depends only on standard system libs (no
+  `libc++_shared.so`).
+- Configured Vulkan-only on the KGSL backend:
+  `-Dvulkan-drivers=freedreno -Dgallium-drivers= -Dfreedreno-kmds=kgsl
+  -Dplatforms=android -Dandroid-stub=true -Degl=disabled -Dgles1/2=disabled
+  -Dllvm=disabled`.
+- One source fix was required: the ASTC decoder compute shader uses
+  `local_size_x_id` (spec-constant workgroup size), which needs SPIR-V >= 1.2,
+  but the stock meson rule invokes glslang with the SPIR-V 1.0 default. The
+  script patches that rule to pass `--target-env spirv1.3`.
+
+Result: `vulkan.turnip.so`, **Mesa 26.3.0-devel**, a702 device support, KGSL,
+exports `HMI` (system-loadable), NEEDED = only `libhardware liblog libnativewindow
+libsync libm libz libdl libc` (self-contained, same profile as the Anbernic
+build). Verified with `readelf`/`strings`; on-device validation still required.
+
+Deploy it exactly like the Anbernic driver: AdrenoTools per-app injection, or the
+system-wide swap via `scripts/swap_vulkan_turnip.sh gpu/turnip-selfbuilt/vulkan.turnip.so`.
+
+Tuning knobs to explore from here (rebuild + A/B): `TU_DEBUG` flags (`sysmem`,
+`gmem`, `nolrz`, `flushall`, `noconform`), ir3 shader-compiler options, trimming
+extensions to the target titles, and pinning a702-specific workarounds. This
+composes with the pure-DTB GPU overclock (docs/04).
+
 ## Caveats and honest limits
 
 - Turnip is Vulkan-only. It does not replace GLES/EGL/CL; those stay Qualcomm.
