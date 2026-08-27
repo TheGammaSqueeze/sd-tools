@@ -25,6 +25,17 @@ State of the sd-tools work. Updated as the work advances.
   (`xbl_s_devprg_ns.melf`). `docs/05`.
 - Self-contained: stock firmware + trees + certs + test keys committed.
 
+## Iteration notes
+
+- vbmeta.img is signed (RSA4096, enforced); added make_disabled_vbmeta.sh and
+  corrected the docs.
+- Firmware freq-table scanner (`tools/fw/scan_freq_tables.py`) added. It located
+  the AOP DDR/bus clock-plan region (aop.mbn 0x11a90..0x11af0, beside the RPMh
+  `ebi.mol`/`ddr.mol` strings). Location corroborated, edit-struct still undecoded.
+- CPU LUT byte-scans (kHz + lval) are confirmed dead ends (hits exceed real CPU
+  max). Only cpucp RISC-V disassembly will find it.
+- Verified each cycle: selftest 8/8 green, abie patch applies to a fresh clone.
+
 ## Open (needs the device or deep disassembly)
 
 - Fuse-state confirmation (`fastboot oem device-info`). Gates any XBL/devcfg
