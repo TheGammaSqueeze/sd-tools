@@ -50,6 +50,16 @@ scripts/          setup.sh (fetch/build external tools)
 scripts/setup.sh                                   # build AOSP dtc, clone abie + sectools
 tools/dtb/verify_roundtrip.sh stock/dtb/vendor_boot.dtb-section   # prove DTB round-trip
 tools/signing/inspect_mbn.py stock/firmware/abl.elf              # read signing identity
+scripts/selftest.sh                                             # regression-test the toolchain
+```
+
+## Overclock workflows
+
+```
+scripts/gpu_overclock.sh stock/dtb/06.dtb 1000 modified/dtb/06.parrot.gpu1000.dtb   # raise top level
+tools/dtb/add_gpu_level.py <in.dts> 1000 <out.dts>                                   # add a new top level
+scripts/repack_vendor_boot.sh <vendor_boot.img> parrot 1000 <out.img>               # end-to-end repack
+scripts/resign_firmware.sh abl modified/firmware/abl.elf modified/firmware/abl.signed.elf   # re-sign (unfused)
 ```
 
 External heavy tools (sectools ~270MB, the boot image editor toolchain) are
