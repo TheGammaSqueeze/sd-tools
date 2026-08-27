@@ -222,12 +222,19 @@ No Mesa-main-required KGSL ioctl is missing from the device kernel. Combined wit
 the successful build against `aarch64-linux-android31` (Android 12 = this device's
 API), there is no reason to pin an older Mesa: build from latest main.
 
-This check is reproducible with `tools/fw/check_kgsl_compat.py <msm_kgsl.ko>`,
-which extracts the ioctls the kernel module implements and diffs them against
-what Turnip requires (use `--mesa <tu_knl_kgsl.cc>` to read the exact set from a
-specific Mesa checkout). On this device's module it reports full coverage. Re-run
-it against a future Mesa checkout or another device's `msm_kgsl.ko` (found in
-`vendor_dlkm/lib/modules/`) to answer the same question there.
+This check is reproducible with `tools/fw/check_kgsl_compat.py`, which extracts
+the ioctls the kernel implements and diffs them against what Turnip requires (use
+`--mesa <tu_knl_kgsl.cc>` to read the exact set from a specific Mesa checkout). It
+accepts either a `msm_kgsl.ko` or a pre-extracted ioctl list; this device's list
+is committed at `gpu/device-kgsl/msm_kgsl.ioctls.txt`, so the full-coverage result
+is reproducible from repo data alone:
+
+```
+tools/fw/check_kgsl_compat.py gpu/device-kgsl/msm_kgsl.ioctls.txt
+```
+
+Re-run it against a future Mesa checkout, or another device's `msm_kgsl.ko` (in
+`vendor_dlkm/lib/modules/`), to answer the same question there.
 
 The only real constraints are build-target settings, not a version ceiling:
 compile against API 31 to match this Android 12 device, and static-link libc++.

@@ -33,13 +33,17 @@ REQUIRED_MAIN = {
 OPTIONAL = {"perfcounter_read"}
 
 
-def kernel_ioctls(ko_path):
-    out = subprocess.run(["strings", ko_path], capture_output=True).stdout.decode("latin1")
+def kernel_ioctls(path):
+    # Accept either a msm_kgsl.ko (scanned with strings) or a pre-extracted
+    # ioctl-list .txt (one name per line, '#' comments), e.g. the committed
+    # gpu/device-kgsl/msm_kgsl.ioctls.txt.
+    if path.endswith(".txt"):
+        text = open(path, "r", errors="replace").read()
+    else:
+        text = subprocess.run(["strings", path], capture_output=True).stdout.decode("latin1")
     have = set()
-    for m in re.finditer(r"(?:kgsl|adreno)_ioctl_([a-z0-9_]+)", out):
-        name = m.group(1)
-        # strip the _compat suffix, those are the 32-bit thunks of the same ioctl
-        name = re.sub(r"_compat$", "", name)
+    for m in re.finditer(r"(?:kgsl|adreno)_ioctl_([a-z0-9_]+)", text):
+        name = re.sub(r"_compat$", "", m.group(1))  # _compat = the 32-bit thunk
         have.add(name)
     return have
 
