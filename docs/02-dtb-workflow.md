@@ -98,6 +98,26 @@ export AOSP_DTC=$(pwd)/../../prebuilt/dtc-aosp-x86_64
 Alternatively edit the split DTBs directly with the tools above and rebuild the
 dtb section, which avoids the Gradle toolchain entirely.
 
+This path is validated on this package. `scripts/repack_vendor_boot.sh`
+automates it: it unpacks with the patched abie (AOSP dtc), edits the chosen SoC
+family's trees, and repacks. The repacked 100MB vendor_boot.img re-extracts to
+15 valid FDTs with the edit present. Example:
+
+```
+scripts/repack_vendor_boot.sh /mnt/c/55g1/.../vendor_boot.img parrot 1000 \
+    modified/firmware/vendor_boot.parrot.gpu1000.img
+```
+
+## Overclock edit helpers
+
+- `scripts/gpu_overclock.sh <dtb> <MHz> <out.dtb>` rewrites the existing top
+  level's frequency (all speed-bins).
+- `tools/dtb/add_gpu_level.py <in.dts> <MHz> <out.dts>` inserts a NEW top level
+  above the stock top in every speed-bin and bumps `qcom,initial-pwrlevel` so
+  the default operating point is unchanged. Safer: the stock levels stay exactly
+  as validated and the device only reaches the new level under full load. Both
+  are exercised against the Parrot tree and recompile cleanly.
+
 ## AVB / vbmeta note
 
 The dtb lives inside vendor_boot, which is covered by a vbmeta hash descriptor.
