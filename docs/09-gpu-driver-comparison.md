@@ -53,6 +53,48 @@ and the gralloc/display-mapper HALs for UBWC and HDR buffer handling). Turnip
 pulls only base Android libs, which is exactly why it can be loaded as a
 self-contained `.so` at runtime.
 
+## Vulkan extension diff (quantified)
+
+Extension identifiers present in each binary (string-level, a close proxy for the
+advertised set): stock blob ~111, Turnip ~420. The blob-only set is just two
+Qualcomm vendor extensions, irrelevant to portable apps:
+
+```
+VK_QCOM_profiling
+VK_QCOM_render_pass_external_format
+```
+
+Everything else the blob exposes, Turnip also exposes. The gap runs the other
+way: Turnip adds the entire modern feature set. The extensions that matter most
+for DX-to-Vulkan translation (Winlator / DXVK / VKD3D-Proton) break down as:
+
+| extension | blob 0615.91 | Turnip 26.1.1 |
+|-----------|--------------|---------------|
+| VK_KHR_swapchain | yes | yes |
+| VK_EXT_robustness2 | yes | yes |
+| VK_EXT_transform_feedback | yes | yes |
+| VK_EXT_custom_border_color | yes | yes |
+| VK_KHR_draw_indirect_count | yes | yes |
+| VK_EXT_extended_dynamic_state | yes | yes |
+| VK_EXT_extended_dynamic_state3 | **no** | yes |
+| VK_KHR_dynamic_rendering | **no** | yes |
+| VK_EXT_graphics_pipeline_library | **no** | yes |
+| VK_EXT_shader_object | **no** | yes |
+| VK_EXT_vertex_input_dynamic_state | **no** | yes |
+| VK_EXT_buffer_device_address | **no** | yes |
+| VK_EXT_4444_formats | **no** | yes |
+| VK_KHR_maintenance5 (and 4/6/7/8/9) | **no** | yes |
+| VK_EXT_descriptor_buffer | **no** | yes |
+| VK_EXT_fragment_shader_interlock | **no** | yes |
+
+The blob covers the older DXVK baseline but is missing the newer pillars that
+current DXVK and VKD3D-Proton lean on: dynamic rendering, graphics pipeline
+library / shader object (fast pipeline creation, less stutter), buffer device
+address (required by many VKD3D-Proton paths and modern DXVK), extended dynamic
+state 3, and the maintenance4-9 chain. This is the concrete, measurable reason
+Turnip enables Windows-game and modern-console emulation on this handheld that
+the 0615.91 blob cannot, and it is the strongest argument for the driver swap.
+
 ## Opportunity 1: use Turnip as a drop-in (viable, low risk)
 
 Two mechanisms, both real on this device:
