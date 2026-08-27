@@ -100,6 +100,16 @@ fi
 echo "[10] sectools + secp384r1 test keys vendored in-repo"
 [ -f third_party/sectools/sectools.py ] && ok "sectools vendored" || bad "sectools missing"
 
+echo "[11b] self-built Turnip is loadable (HMI), supports a702, Vulkan-only"
+STU=gpu/turnip-selfbuilt/vulkan.turnip.so
+hmi=$(readelf -sW "$STU" 2>/dev/null | grep -cw HMI || true)
+cxx=$(readelf -d "$STU" 2>/dev/null | grep -c "libc++_shared" || true)
+if [ -f "$STU" ] && [ "${hmi:-0}" -ge 1 ] && grep -qa a702 "$STU" && [ "${cxx:-0}" -eq 0 ]; then
+  ok "self-built Turnip valid (HMI + a702 + self-contained)"
+else
+  bad "self-built Turnip missing/regressed"
+fi
+
 echo "[11] sectools secimage pipeline imports and runs"
 python3 third_party/sectools/sectools.py secimage --help >/dev/null 2>&1 \
   && ok "sectools secimage runs" || bad "sectools secimage broken"

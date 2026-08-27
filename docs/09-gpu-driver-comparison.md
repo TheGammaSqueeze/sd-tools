@@ -248,6 +248,15 @@ build). Verified with `readelf`/`strings`; on-device validation still required.
 Deploy it exactly like the Anbernic driver: AdrenoTools per-app injection, or the
 system-wide swap via `scripts/swap_vulkan_turnip.sh gpu/turnip-selfbuilt/vulkan.turnip.so`.
 
+Capability check vs the Anbernic build (confirming our build is complete, not a
+regression): same a702/a725 device support; Vulkan extension coverage 438 (ours,
+26.3.0) vs 420 (Anbernic, 26.1.1), with ZERO extensions present in Anbernic but
+missing from ours, and the extra 18 are the 26.3-over-26.1 additions
+(cooperative_matrix_maintenance1, multisampled_render_to_swapchain, image_tiling_control,
+...). So our build is a strict superset of the Anbernic driver's capability, plus
+API 31 targeting and stripped. `selftest.sh [11b]` guards that the committed
+self-built driver still exports HMI, supports a702, and is self-contained.
+
 Tuning knobs to explore from here (rebuild + A/B): `TU_DEBUG` flags (`sysmem`,
 `gmem`, `nolrz`, `flushall`, `noconform`), ir3 shader-compiler options, trimming
 extensions to the target titles, and pinning a702-specific workarounds. This
