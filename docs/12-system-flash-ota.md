@@ -73,6 +73,40 @@ zip has no update-binary and recovery rejects it. This is why **fastbootd is the
 recommended path** for a GSI; the recovery zip is provided for completeness and
 needs an updater plus on-device testing.
 
+## Flash ANY partition (generalized, self-contained)
+
+`scripts/build_flash_ota.sh` builds a testkey-signed recovery zip that writes any
+set of partitions on the current slot, no slot switch. It is self-contained: it
+uses the vendored `prebuilt/update-binary-arm64` (the Edify updater), the vendored
+`tools/signing/signapk/`, and `keys/testkey`.
+
+It handles both partition classes automatically (or override with `:logical` /
+`:physical`):
+- logical (dynamic, in super: system, system_ext, product, vendor, odm,
+  vendor_dlkm, odm_dlkm): resized to fit and written via
+  `/dev/block/mapper/<name>`.
+- physical (boot, vendor_boot, dtbo, vbmeta, recovery, abl, xbl, tz, aop,
+  devcfg, ...): written via
+  `/dev/block/bootdevice/by-name/<name><slot_suffix>`, the current slot resolved
+  at flash time with `getprop ro.boot.slot_suffix`.
+
+```
+# system GSI only:
+scripts/build_flash_ota.sh --out sys.zip \
+  --part system:out/home/build-output/lineage-21.0-20260817-UNOFFICIAL-arm64_bvN.img
+
+# boot + dtbo together (physical, current slot):
+scripts/build_flash_ota.sh --out bootset.zip \
+  --part boot:boot.img:physical --part dtbo:dtbo.img:physical
+
+# then: adb reboot recovery ; adb sideload <zip>
+```
+
+The updater is built once with `scripts/build_updater.sh` (needs the AOSP tree)
+and committed to `prebuilt/update-binary-arm64`; after that the flash-zip build is
+fully offline. `build_system_ota.sh` remains as the system-only convenience
+wrapper.
+
 ## The key
 
 `keys/testkey.{pk8,x509.pem}` is the AOSP public testkey, identical to the cert

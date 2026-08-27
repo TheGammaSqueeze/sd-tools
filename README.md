@@ -92,6 +92,9 @@ prebuilt/dtc-aosp-x86_64   AOSP dtc (prebuilt)
 third_party/abie           the PATCHED Android_boot_image_editor (source, builds with its gradlew)
 third_party/sectools       genuine QTI sectools + secp384r1 test keys
 tools/signing/qtestsign    stub MBN signer for unfused parts
+keys/testkey.{pk8,x509.pem}  AOSP testkey (OTA/recovery zip signing)
+tools/signing/signapk/       signapk.jar + libconscrypt (whole-file OTA signing)
+prebuilt/update-binary-arm64 Edify updater for recovery flash zips
 tools/signing/testkeys-secp384r1, stock/certs   the certs
 ```
 
