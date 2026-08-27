@@ -1,0 +1,13 @@
+run_ts=1787872735
+temp_before_mC=37100
+cpu_big_maxkhz=2400000
+cpu_little_maxkhz=1958400
+gpu_maxhz=1010000000
+CPU_BIG cpubench iters=200000000 passes=5 best_s=0.6706 mops=298.24
+CPU_LITTLE cpubench iters=120000000 passes=5 best_s=1.4270 mops=84.09
+MEM membench buf=256MiB read_GBps=15.31 copy_GBps=37.80 latency_ns=127.03
+GPU gpu="Adreno (TM) A12" api=1.1.128
+gpubench groups=32768 iters=8192 invoc=2097152 best_s=1.0640 gflops=129.2
+cpu_big_cur=2400000
+gpu_cur=1010000000
+temp_after_mC=37800
