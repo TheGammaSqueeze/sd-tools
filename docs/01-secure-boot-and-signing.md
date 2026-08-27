@@ -78,10 +78,26 @@ Override the version with `MBN_VERSION=7` if a specific image needs it.
 ### Path B - device fused to the test root: genuine sectools
 
 If the fuse is blown to the test root the device runs, a real signature under
-that exact root is required. Use the genuine QTI `sectools` (fetched by
-`scripts/setup.sh` into `external/qccsdk/sectools`). The secp384r1 test key sets
-are committed under `tools/signing/testkeys-secp384r1/` and
-`tools/signing/mrc_presigned_certs-secp384r1/` so the signer is self-contained.
+that exact root is required. Use the genuine QTI `sectools`, vendored in-repo at
+`third_party/sectools`. The secp384r1 test key sets are committed under
+`third_party/sectools/resources/.../qti_presigned_certs-secp384r1/` and under
+`tools/signing/testkeys-secp384r1/`, so the signer is self-contained.
+
+Tool status (validated): the sectools signing pipeline runs end-to-end here
+(loads, parses, signs). Running it on the stock ABL reports, from sectools' own
+parse, that this device is MBNv7 (SB3.0). The one config the vendored sectools
+ships is `config/qcc730` which is MBNv3 / RSA-2048 / SHA256 (SB2.0), the wrong
+crypto for this SoC (sectools errors "Downscaling MBNv7 image to MBNv3 image is
+not supported"). So the fused-device path needs an MBNv7 / SB3.0 / ECDSA
+secp384r1 secimage config for Parrot (SM6450), which the QCC SDK snapshot does
+not include. That config must declare `secboot_version` for MBNv7 and the ECDSA
+secp384r1 signer, and its `<image sign_id="appsbl">` entry must carry the exact
+`msm_part` / `oem_id` / `model_id` / `debug` of this device (read them from the
+stock image with `tools/signing/inspect_mbn.py`). Authoring it with any guessed
+device value would produce a wrong signature, and it cannot be boot-validated
+without a fused unit, so it is deliberately not fabricated here. On an unfused
+device (the expected case for this test-keyed build) this whole path is moot:
+Path A (qtestsign) is the validated, working route.
 
 Note: the committed presigned chain is the "Generated Test Root CA" variant. The
 device's images chain to "SECTOOLS SECP384R1 CURVE TEST ROOT", a different test
@@ -93,10 +109,10 @@ device this does not matter and Path A is sufficient.
 Canonical sectools ABL sign (appsbl group):
 
 ```
-python3 external/qccsdk/sectools/sectools.py secimage \
+python3 third_party/sectools/sectools.py secimage \
   -i modified/firmware/abl.elf \
   -g appsbl \
-  -c external/qccsdk/sectools/config/<chipset>/<chipset>_secimage.xml \
+  -c third_party/sectools/config/<chipset>/<chipset>_secimage.xml \
   --cfg_selected_signer qti_presigned \
   --sign -o modified/firmware/out/
 ```

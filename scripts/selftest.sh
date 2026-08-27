@@ -65,6 +65,10 @@ fi
 echo "[10] sectools + secp384r1 test keys vendored in-repo"
 [ -f third_party/sectools/sectools.py ] && ok "sectools vendored" || bad "sectools missing"
 
+echo "[11] sectools secimage pipeline imports and runs"
+python3 third_party/sectools/sectools.py secimage --help >/dev/null 2>&1 \
+  && ok "sectools secimage runs" || bad "sectools secimage broken"
+
 rm -rf "$tmp"
 echo
 echo "selftest: $pass passed, $fail failed"
