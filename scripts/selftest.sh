@@ -55,6 +55,16 @@ python3 -c "import sys; sys.path.insert(0,'tools/signing/qtestsign'); import mbn
 echo "[8] secp384r1 test keys committed (self-contained signing)"
 [ -f tools/signing/testkeys-secp384r1/qpsa_rootca.key ] && ok "test keys present" || bad "test keys missing"
 
+echo "[9] vendored abie matches upstream + the committed patch"
+if [ -d third_party/abie ] && ( cd third_party/abie && git apply --reverse --check "$HERE/patches/abie-use-aosp-dtc.patch" ) 2>/dev/null; then
+  ok "abie == upstream + patch"
+else
+  bad "abie/patch mismatch"
+fi
+
+echo "[10] sectools + secp384r1 test keys vendored in-repo"
+[ -f third_party/sectools/sectools.py ] && ok "sectools vendored" || bad "sectools missing"
+
 rm -rf "$tmp"
 echo
 echo "selftest: $pass passed, $fail failed"
