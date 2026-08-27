@@ -33,17 +33,24 @@ State of the sd-tools work. Updated as the work advances.
   the AOP DDR/bus clock-plan region (aop.mbn 0x11a90..0x11af0, beside the RPMh
   `ebi.mol`/`ddr.mol` strings). Location corroborated, edit-struct still undecoded.
 - CPU LUT byte-scans (kHz + lval) are confirmed dead ends (hits exceed real CPU
-  max). Only cpucp RISC-V disassembly will find it.
+  max).
+- CPU LUT RISC-V disassembly of cpucp.elf DONE (docs/06): cpucp is a DCVS engine,
+  never touches the FREQ_LUT window, holds no lval array. Not the LUT home.
+- CPU LUT ARM64 analysis of xbl_s/uefi/devcfg DONE (docs/07): no static editable
+  EPSS LUT in the shipped images; the freq plan is inside the compressed XBL
+  loader payload and CPRh-composed at runtime. Static-firmware CPU OC not viable
+  from these artifacts. Added tools/fw/epss_lut.sh for the live on-device route.
 - Verified each cycle: selftest 8/8 green, abie patch applies to a fresh clone.
 
 ## Open (needs the device or deep disassembly)
 
 - Fuse-state confirmation (`fastboot oem device-info`). Gates any XBL/devcfg
   flash. Only the physical unit can answer it.
-- CPU EPSS LUT row layout: two byte-scans (kHz and lval) of devcfg/cpucp were
-  negative; the table lives in cpucp.elf (RISC-V) or is runtime-assembled.
-  Next step is a Ghidra RISC-V disassembly of cpucp.elf against the SM6450 BSP.
-  Do not guess offsets. `docs/04`.
+- CPU EPSS LUT: investigation concluded (docs/06 + docs/07). No static editable
+  LUT in the shipped images; it is composed at runtime inside the compressed XBL
+  loader. Remaining route to a firmware edit is to decompress the xbl_s.melf
+  loader payload and edit the freq-plan array, then re-sign; otherwise use the
+  live on-device tool (tools/fw/epss_lut.sh). `docs/04`.
 - DDR ceiling raise: the DTB `ddr-freq-table` only exposes trained setpoints;
   the real ceiling is in xbl_config/aop and a DTB entry above it is ignored.
   Needs aop/xbl analysis. `docs/04`.
