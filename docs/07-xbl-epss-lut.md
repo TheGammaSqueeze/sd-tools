@@ -111,3 +111,22 @@ compressed Loader payload / CPR blob and were not corroborable from these images
 CPRh voltage-envelope risk: raising an lval without moving its bound corner runs the core above
 the CPRh voltage envelope for that OPP -> instability/silent-data-corruption. Any overclock must
 also raise the corner or accept the higher corner's float voltage.
+
+## Practical route: the live EPSS FREQ_LUT (tools/fw/epss_lut.sh)
+
+Because no static LUT is editable in the shipped images, the concrete CPU-OC
+route on a booted, rooted device is to read and (experimentally) write the EPSS
+hardware LUT directly. `tools/fw/epss_lut.sh` does this over adb:
+
+```
+tools/fw/epss_lut.sh dump 0      # domain0 (efficiency) FREQ+VOLT LUT, decoded to MHz
+tools/fw/epss_lut.sh dump 1      # domain1 (prime)
+tools/fw/epss_lut.sh write 1 <row> <lval>   # EXPERIMENTAL, root, CPRh-envelope risk
+```
+
+Register model (Linux qcom-cpufreq-hw): domain0 base 0x17d91000, domain1
+0x17d92000; FREQ_LUT[i] = base + 0x100 + i*4 with lval = reg & 0xFFF and
+freq_kHz = lval*19200; VOLT_LUT[i] = base + 0x200 + i*4. Dump is read-only and
+safe; writes may be re-latched by the EPSS or ignored, and a frequency above the
+CPRh voltage envelope can hang the CPU, so read first and bump conservatively.
+This sidesteps editing and re-signing XBL entirely.
