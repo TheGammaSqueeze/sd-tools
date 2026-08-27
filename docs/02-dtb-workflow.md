@@ -120,9 +120,19 @@ scripts/repack_vendor_boot.sh /mnt/c/55g1/.../vendor_boot.img parrot 1000 \
 
 ## AVB / vbmeta note
 
-The dtb lives inside vendor_boot, which is covered by a vbmeta hash descriptor.
-Repacking vendor_boot changes its hash. On this package vbmeta is unsigned, so a
-device with verification disabled boots the repacked image directly; otherwise
-vbmeta must be regenerated (avbtool, available in the boot image editor) or
-verification disabled. This is separate from the XBL/ABL secure-boot chain in
-`docs/01`.
+The dtb lives inside vendor_boot, which is covered by the top-level vbmeta.
+Repacking vendor_boot changes its hash. Correction to an earlier assumption: the
+standalone `vbmeta.img` on this package IS signed (SHA256_RSA4096, flags=0,
+enforced) and hashes boot/vendor_boot/etc. Only vendor_boot's own embedded AVB
+footer is unsigned. So a repacked vendor_boot will be rejected by the stock
+vbmeta.
+
+Since the OEM RSA4096 private key is not available, the route (on an unlocked
+bootloader) is a verification-disabled vbmeta: `scripts/make_disabled_vbmeta.sh`
+produces one with the VERIFICATION_DISABLED flag (0x2), after which the modified
+vendor_boot boots. See `docs/05`. This is separate from the XBL/ABL secure-boot
+chain in `docs/01`.
+
+The vbmeta also confirms the target: build fingerprint
+`qti/parrot/parrot:12/.../userdebug/test-keys` (Parrot / SM6450, Android 12,
+userdebug, test-keys).

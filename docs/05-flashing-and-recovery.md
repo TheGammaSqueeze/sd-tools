@@ -47,11 +47,20 @@ fastboot flash devcfg_a modified/firmware/devcfg.signed.mbn
 fastboot flash devcfg_b modified/firmware/devcfg.signed.mbn
 ```
 
-Note on vbmeta: repacking vendor_boot changes its AVB hash. On this package
-vbmeta is unsigned, so a device with verification disabled boots it directly. If
-the bootloader rejects it, either regenerate vbmeta with avbtool (bundled in the
-boot image editor) or flash a vbmeta with verification disabled
-(`fastboot flash vbmeta --disable-verity --disable-verification`).
+Note on vbmeta: the top-level `vbmeta.img` is signed (SHA256_RSA4096, flags=0)
+and hashes vendor_boot, so a repacked vendor_boot is rejected unless AVB is
+disabled. The OEM key is not available, so on an unlocked bootloader flash a
+verification-disabled vbmeta:
+
+```
+fastboot flashing unlock                                  # if not already unlocked
+scripts/make_disabled_vbmeta.sh modified/firmware/vbmeta.disabled.img
+fastboot --disable-verity --disable-verification flash vbmeta modified/firmware/vbmeta.disabled.img
+fastboot flash vendor_boot_a out.img
+fastboot reboot
+```
+
+A locked bootloader ignores the disable flag; unlock first.
 
 ## Path 2: EDL 9008 (firehose), for recovery or a bricked bootloader
 
