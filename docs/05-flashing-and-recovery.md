@@ -62,6 +62,26 @@ fastboot reboot
 
 A locked bootloader ignores the disable flag; unlock first.
 
+## One-shot orchestration
+
+`scripts/flash_gpu_oc.sh` does the whole GPU path in one call: repack
+vendor_boot with the chosen frequency, verify the edit is present and all 15
+trees are valid FDTs, build the verification-disabled vbmeta, and flash. It is
+DRY-RUN by default (prints the fastboot commands); add `--execute` to flash.
+
+```
+scripts/flash_gpu_oc.sh <stock_vendor_boot.img> parrot 1000            # dry run
+scripts/flash_gpu_oc.sh <stock_vendor_boot.img> parrot 1000 --addlevel # add a level
+scripts/flash_gpu_oc.sh <stock_vendor_boot.img> parrot 1000 --execute  # flash
+```
+
+Validated end-to-end on this package (dry run): repack applies the edit to all
+five Parrot trees, all 15 trees re-extract valid, vbmeta built.
+
+`scripts/restore_stock.sh <stock_vendor_boot.img> [stock_vbmeta.img]` prints (or
+`--execute` runs) the commands to flash every stock boot-chain image back to
+both slots from `stock/firmware/`.
+
 ## Path 2: EDL 9008 (firehose), for recovery or a bricked bootloader
 
 The EDL Firehose programmer for this SoC is `xbl_s_devprg_ns.melf` (committed in
