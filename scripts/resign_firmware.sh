@@ -31,16 +31,24 @@ TYPE="$1"; IN="$2"; OUT="$3"; CHIP="${4:-}"
 case "$MODE" in
   qtestsign)
     QT="$HERE/tools/signing/qtestsign/qtestsign.py"
-    # qtestsign fw type names: aboot/abl, xbl, tz, hyp
+    # Map our type names to qtestsign firmware types (which set SW_ID).
     case "$TYPE" in
-      abl|appsbl) ft=abl ;;
-      xbl|sbl)    ft=xbl ;;
-      tz|qtee)    ft=tz  ;;
-      hyp|hypvm)  ft=hyp ;;
-      *) echo "qtestsign has no group for '$TYPE'; use --mode sectools"; exit 2 ;;
+      abl|appsbl)   ft=abl ;;
+      xbl|sbl|sbl1) ft=sbl1 ;;
+      tz|qtee)      ft=tz  ;;
+      hyp|hypvm)    ft=hyp ;;
+      devcfg)       ft=devcfg ;;
+      cpucp)        ft=cpucp ;;
+      aop)          ft=aop ;;
+      xbl-config|xbl_config) ft=xbl-config ;;
+      *) echo "no qtestsign type for '$TYPE'; qtestsign supports abl/sbl1/tz/hyp/devcfg/cpucp/aop/xbl-config"; exit 2 ;;
     esac
-    echo "qtestsign ($ft): $IN -> $OUT"
-    python3 "$QT" "$ft" "$IN" -o "$OUT"
+    # This device is SB3.0 (ECDSA secp384r1, SHA384 hash); MBN header v6 matches.
+    # Override with MBN_VERSION if a specific image needs v7.
+    MV="${MBN_VERSION:-6}"
+    echo "qtestsign ($ft, MBN v$MV): $IN -> $OUT"
+    echo "note: qtestsign writes a stub signature; only boots on a secure-boot-OFF device"
+    python3 "$QT" -v "$MV" "$ft" "$IN" -o "$OUT"
     ;;
   sectools)
     ST="$HERE/external/qccsdk/sectools/sectools.py"

@@ -63,9 +63,17 @@ python3 tools/signing/qtestsign/qtestsign.py abl  modified/firmware/abl.elf  -o 
 python3 tools/signing/qtestsign/qtestsign.py xbl  modified/firmware/xbl.elf  -o modified/firmware/xbl.signed.elf
 ```
 
-qtestsign supports MBN v3/v5/v6/v7 and the image types `aboot`/`abl`, `hyp`,
-`tz`, `xbl`. It does NOT forge a real signature, so it only works on an unfused
-device.
+qtestsign supports MBN v3/v5/v6/v7 and the image types `abl`, `sbl1` (xbl),
+`tz`, `hyp`, `devcfg`, `cpucp`, `aop`, `xbl-config` and more. It does NOT forge a
+real signature, so it only works on an unfused device.
+
+`scripts/resign_firmware.sh` wraps it and defaults to MBN v6, which matches this
+device's SB3.0 header (SHA384 hash segment). Verified on the ABL: the re-signed
+image carries a well-formed v6 hash segment (ph[0] header 0x94 + ph[1] hash and
+cert chain), with a stub RSA "NOT SECURE" cert chain. Because `devcfg`, `cpucp`
+and `aop` are supported types, this same path re-signs the firmware needed for
+the CPU and DDR overclock (see docs/04) on an unfused device, without sectools.
+Override the version with `MBN_VERSION=7` if a specific image needs it.
 
 ### Path B - device fused to the test root: genuine sectools
 
