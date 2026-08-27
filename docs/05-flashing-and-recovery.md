@@ -75,8 +75,16 @@ scripts/flash_gpu_oc.sh <stock_vendor_boot.img> parrot 1000 --addlevel # add a l
 scripts/flash_gpu_oc.sh <stock_vendor_boot.img> parrot 1000 --execute  # flash
 ```
 
-Validated end-to-end on this package (dry run): repack applies the edit to all
-five Parrot trees, all 15 trees re-extract valid, vbmeta built.
+Validated end-to-end on this package (dry run) for BOTH SoC families:
+- Parrot 1000 MHz raise-top: edit applied to all 5 Parrot trees, 15/15 valid.
+- Ravelin 1080 MHz add-level: edit applied across the 6 Ravelin trees (24
+  entries), 15/15 valid.
+
+Cross-SoC integrity: editing one family leaves the other families' trees
+untouched. Verified by decompiling a Parrot tree out of a Ravelin-edited image
+and diffing it against stock (semantic match, no edit present). This holds by
+construction, `repack_vendor_boot.sh` only rewrites the targeted family's
+`dtb.N.dts`, and is confirmed on the repacked image.
 
 `scripts/restore_stock.sh <stock_vendor_boot.img> [stock_vbmeta.img]` prints (or
 `--execute` runs) the commands to flash every stock boot-chain image back to
