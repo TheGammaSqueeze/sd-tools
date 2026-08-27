@@ -17,3 +17,7 @@ __pycache__/
 
 # Large regenerable repacked images (produced by scripts/repack_vendor_boot.sh)
 /modified/firmware/*vendor_boot*.img
+
+# Regenerable Turnip-swapped vendor images
+/modified/vendor*.img
+vendor_turnip*.img

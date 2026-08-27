@@ -121,6 +121,58 @@ fixes and per-title workarounds. When the blob wins: native GLES apps, UI
 compositing, UBWC/AFBC-heavy and HDR paths, and raw driver overhead on
 already-fast titles.
 
+## Complete system-wide replacement (done, reproducible)
+
+The Android Vulkan loader opens the driver by path
+(`ro.hardware.vulkan=adreno` -> `/vendor/lib64/hw/vulkan.adreno.so`) and calls its
+`HMI` hwvulkan module. Turnip built for Android exports `HMI` (verified with
+`readelf`), needs only standard libs, and handles Gralloc4, so making Turnip that
+file replaces the system Vulkan driver for every app. GLES/EGL stays Qualcomm
+(`ro.hardware.egl=adreno`).
+
+Two things must be handled or apps cannot load it:
+- Size: Turnip (16.9 MB) is ~13 MB larger than the blob (4 MB) and the stock
+  vendor ext4 has only ~2.7 MB free, so the image is grown first (resize2fs).
+- SELinux: the stock driver is labelled `u:object_r:same_process_hal_file:s0`
+  (the same-process-HAL context, it is dlopen'd into every app). The replacement
+  must carry the same label and mode 0644.
+
+`scripts/swap_vulkan_turnip.sh` does the offline image surgery and restores both:
+
+```
+scripts/swap_vulkan_turnip.sh <vendor_a.img> gpu/turnip-anbernic/vulkan.turnip.so vendor_turnip.img
+```
+
+Validated: the produced image passes `e2fsck`, and the embedded
+`/vendor/lib64/hw/vulkan.adreno.so` is byte-identical to the Turnip binary with
+the correct `same_process_hal_file` context. Flash it (bootloader unlocked;
+fastbootd resizes the dynamic partition):
+
+```
+scripts/make_disabled_vbmeta.sh vbmeta.disabled.img
+fastboot --disable-verity --disable-verification flash vbmeta vbmeta.disabled.img
+fastboot reboot fastboot                 # enter fastbootd (dynamic partitions)
+fastboot flash vendor vendor_turnip.img
+fastboot reboot
+```
+
+On a userdebug + unlocked device the simpler route needs no reflash:
+
+```
+adb root && adb remount
+adb shell cp /vendor/lib64/hw/vulkan.adreno.so /vendor/lib64/hw/vulkan.adreno.so.bak
+adb push vulkan.turnip.so /vendor/lib64/hw/vulkan.adreno.so
+adb shell restorecon /vendor/lib64/hw/vulkan.adreno.so && adb reboot
+```
+
+Compatibility caveat: the Anbernic Turnip declares `minApi 34` (Android 14), and
+this device is Android 12 (vendor sdk 32). Turnip links only stable NDK libs and
+detects gralloc at runtime, so it is expected to load, but this is below its
+stated minimum and MUST be validated on device (check `adb shell dumpsys SurfaceFlinger | grep -i vulkan`, run a Vulkan app, watch `logcat` for loader/gralloc errors). Keep the `.bak` (or the stock `vulkan.adreno.so` committed in
+`gpu/stock-qualcomm/`) as the revert. If HWUI is switched to Vulkan
+(`ro.hwui.use_vulkan`), test the UI too; the blob is usually better for the
+compositor.
+
 ## Opportunity 2: build our own optimized Turnip (viable, high value)
 
 Turnip is upstream Mesa, so we can build and tune it for a702/gen7 ourselves:
