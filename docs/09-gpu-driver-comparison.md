@@ -201,6 +201,34 @@ targeting Android 12 (API 31) is a newer, better-targeted equivalent, and any
 real optimization has to come from build options / tuning, not from something
 Anbernic did.
 
+## Latest upstream Mesa that works on this device
+
+Answer: the latest upstream (Mesa main, currently 26.3.0-devel) works. The kernel
+imposes no version cap.
+
+The gating factor for "does a given Turnip run" on Android is the KGSL kernel ABI,
+Turnip's KGSL backend (`tu_knl_kgsl.cc`) calls a fixed set of `IOCTL_KGSL_*`. This
+device runs Linux 5.10.209 android12 GKI with the Qualcomm `msm_kgsl.ko` a6xx
+driver. Cross-checking the ioctls Mesa main requires against the ones the module
+implements: full coverage, including the newest ones that modern Turnip features
+depend on:
+
+- `IOCTL_KGSL_GPUMEM_BIND_RANGES` (sparse residency / VM binding) - present.
+- `IOCTL_KGSL_GPU_AUX_COMMAND` (timeline semaphores / async submit) - present.
+- `IOCTL_KGSL_GPUOBJ_IMPORT`, `TIMELINE`/`timeline_fence`, and
+  `adreno perfcounter_read` - all present.
+
+No Mesa-main-required KGSL ioctl is missing from the device kernel. Combined with
+the successful build against `aarch64-linux-android31` (Android 12 = this device's
+API), there is no reason to pin an older Mesa: build from latest main.
+
+The only real constraints are build-target settings, not a version ceiling:
+compile against API 31 to match this Android 12 device, and static-link libc++.
+The one thing that could ever change this is Mesa raising its own Android API
+floor above 31; today it is at or below 31 (proven by the build), so main is fine.
+GMU firmware is loaded by the kernel from the device and is independent of the
+Mesa version.
+
 ## Opportunity 2: build our own optimized Turnip (viable, high value)
 
 Turnip is upstream Mesa, so we can build and tune it for a702/gen7 ourselves:
