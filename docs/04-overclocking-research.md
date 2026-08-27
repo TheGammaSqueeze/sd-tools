@@ -277,6 +277,22 @@ So raising the top `ddr-freq-table` entry in the DTB alone will **not** overcloc
 
 Consequence: LLCC and bus (BCM) scaling are not DTB-editable to a higher ceiling. They follow the aop-programmed BCM setpoints. You can change which client votes how much (icc edges in the DTB), but not the top setpoint the BCM can deliver.
 
+### 3.4 Firmware table scan: located AOP clock-plan region (reproducible, edit-offset UNCONFIRMED)
+
+`tools/fw/scan_freq_tables.py` scans a firmware blob for stepped monotonic tables under several encodings. On `aop.mbn` it surfaces a cluster of clean MHz u32 tables:
+
+```
+tools/fw/scan_freq_tables.py stock/firmware/aop.mbn --min-step 20 --min-len 5
+  MHz u32LE @0x011a90 step~32.0  [352, 384, 416, 448, 480]
+  MHz u32LE @0x011ab0 step~32.0  [452, 484, 516, 548, 580]
+  MHz u32LE @0x011ad0 step~35.2  [504, 520, 552, 592, 640, 680]
+  MHz u32LE @0x011af0 step~35.2  [504, 520, 548, 592, 636, 680]
+```
+
+These sit directly among the AOP/RPMh resource strings at 0x11800..0x11b00: `ebi.mol` (EBI = external bus interface, the DDR path), `ddr.mol`, `gfx.mol`, `cx.mol`, `mx.mol`, plus `ddr_freq_disable`, `Frequency FSM` and `PASR` (DDR partial-array self-refresh). That co-location corroborates this region as the AOP/RPMh EBI/DDR/bus clock plan (MoL = mode-of-level tables), consistent with 3.2 (aop owns the DDR frequency FSM).
+
+Status: this is a corroborated LOCATION, not a confirmed edit target. The exact struct (which of these tables is EBI vs LLCC vs a bus, the paired voltage-corner/MoL index, and how the BCM scalar `bcm_lp5dr_scalar` ties in) is not yet decoded, and the values do not map one-to-one to the DTB `ddr-freq-table` clock steps (2092/3196 MHz), so these are a lower-level bus/EBI plan rather than the DDR command clock directly. Do not edit these offsets until the RPMh MoL struct is decoded against the SM6450 BSP; a wrong AOP edit can hang the DDR bring-up (no-boot). The CPU LUT scan (devcfg/cpucp) remains inconclusive: lval decodes there exceed the SoC's real CPU max, so those hits are byte-coincidences, not the EPSS LUT, which points back to cpucp RISC-V disassembly as the only reliable route.
+
 ---
 
 ## Summary: what to edit, effect, ceiling, risk, re-sign
