@@ -291,7 +291,18 @@ tools/fw/scan_freq_tables.py stock/firmware/aop.mbn --min-step 20 --min-len 5
 
 These sit directly among the AOP/RPMh resource strings at 0x11800..0x11b00: `ebi.mol` (EBI = external bus interface, the DDR path), `ddr.mol`, `gfx.mol`, `cx.mol`, `mx.mol`, plus `ddr_freq_disable`, `Frequency FSM` and `PASR` (DDR partial-array self-refresh). That co-location corroborates this region as the AOP/RPMh EBI/DDR/bus clock plan (MoL = mode-of-level tables), consistent with 3.2 (aop owns the DDR frequency FSM).
 
-Status: this is a corroborated LOCATION, not a confirmed edit target. The exact struct (which of these tables is EBI vs LLCC vs a bus, the paired voltage-corner/MoL index, and how the BCM scalar `bcm_lp5dr_scalar` ties in) is not yet decoded, and the values do not map one-to-one to the DTB `ddr-freq-table` clock steps (2092/3196 MHz), so these are a lower-level bus/EBI plan rather than the DDR command clock directly. Do not edit these offsets until the RPMh MoL struct is decoded against the SM6450 BSP; a wrong AOP edit can hang the DDR bring-up (no-boot). The CPU LUT scan (devcfg/cpucp) remains inconclusive: lval decodes there exceed the SoC's real CPU max, so those hits are byte-coincidences, not the EPSS LUT, which points back to cpucp RISC-V disassembly as the only reliable route.
+Status update (decoded further): these tables were dumped in full. They are groups of five ascending MHz steps with padding, in the 352..680 MHz band:
+
+```
+@0x11a90: 352 384 416 448 480 | (480 480) 580
+@0x11ab0: 452 484 516 548 580 | (580 580) 680
+@0x11ad0: 504 520 552 592 640 | 680 (680 680)
+@0x11af0: 504 520 548 592 636 | 680 (680) 504
+```
+
+A 680 MHz top rules these out as the DDR command clock: LPDDR5 on this part runs at 3196 MHz (DTB ddr5 top) and LPDDR4X at 2092 MHz, neither near 680. These 352..680 MHz plans, sitting beside the `ddr_freq_disable` / `PM_PROP_*` power-management strings, are the interconnect/NoC and LLCC clock plans (config-NoC / mem-NoC / LLCC, whose maxima on SM-class parts land in the 500..700 MHz range), not the DDR data clock. So AOP holds the BUS/LLCC clock plan here, while the DDR command-clock ceiling is set by the BCM vote vectors plus the XBL DDR training, in BCM units (not plaintext MHz), and is not a directly editable MHz field in this region.
+
+Conclusion for memory OC: there is no plaintext DDR-command-clock table to bump in aop.mbn. Raising DDR requires editing the BCM vote vectors and the XBL DDR PLL/training plan (both signed), which is high risk (untrained DDR = no boot). The editable-and-safe memory-side levers are the DTB `ddr-freq-table` operating-point menu (which cannot exceed the trained ceiling) and, if desired, the NoC/LLCC bus clock plans located above (still firmware, still needs re-sign). The CPU LUT question is settled separately (docs/06, docs/07): runtime EPSS only, no static table anywhere.
 
 ---
 

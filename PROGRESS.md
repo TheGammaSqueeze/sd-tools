@@ -27,6 +27,9 @@ State of the sd-tools work. Updated as the work advances.
 
 ## Iteration notes
 
+- DDR characterized (docs/04 3.4): the aop.mbn tables near ebi.mol are NoC/LLCC bus clock plans (352-680 MHz), NOT the DDR command clock (LPDDR5 3196 MHz). No plaintext DDR-clock table to bump; DDR ceiling is BCM-vote + XBL-training bound (signed, high risk).
+- Repo made fully self-contained: patched abie + sectools vendored under third_party/, all tools tracked in git.
+
 - vbmeta.img is signed (RSA4096, enforced); added make_disabled_vbmeta.sh and
   corrected the docs.
 - Firmware freq-table scanner (`tools/fw/scan_freq_tables.py`) added. It located
