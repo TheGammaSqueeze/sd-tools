@@ -306,6 +306,26 @@ A 680 MHz top rules these out as the DDR command clock: LPDDR5 on this part runs
 
 Conclusion for memory OC: there is no plaintext DDR-command-clock table to bump in aop.mbn. Raising DDR requires editing the BCM vote vectors and the XBL DDR PLL/training plan (both signed), which is high risk (untrained DDR = no boot). The editable-and-safe memory-side levers are the DTB `ddr-freq-table` operating-point menu (which cannot exceed the trained ceiling) and, if desired, the NoC/LLCC bus clock plans located above (still firmware, still needs re-sign). The CPU LUT question is settled separately (docs/06, docs/07): runtime EPSS only, no static table anywhere.
 
+### 3.5 DDR BCM control structures located
+
+The DDR frequency control in aop.mbn is a Bus Clock Manager (BCM) vote-index scheme, not a frequency table. The BCM node names sit at 0x11380..0x113c0:
+
+```
+0x1136b ddraux          0x11398 bcm_starc_0
+0x1137c bcm_snd_default 0x113a4 bcm_starc_1
+0x1138c bcm_snd_lp4     0x113b0 bcm_lp5dr_scalar
+```
+
+`bcm_snd_lp4` (LPDDR4 SNoC-to-DDR), `bcm_starc_0/1` and `bcm_lp5dr_scalar` (the LPDDR5 data-rate scalar) are the memory BCMs. Immediately after, at ~0x11480..0x114b4, is a vote-index vector, ascending indices with 0xFFFFFFFF sentinels:
+
+```
+0 1 2 3 4 5 [FFFFFFFF] 7 7 8 9 9 10 11 [FFFFFFFF]...
+```
+
+These are BCM vote indices (0..11), one per DDR performance state, not MHz. The actual DDR command clock for each index is programmed by the XBL DDR PLL/training, and the DTB `ddr-freq-table` (top ddr4 2092 MHz, ddr5 3196 MHz) maps DCVS setpoints onto these same states. So the DDR ceiling is "the clock XBL trained for the top BCM state (index 11)".
+
+This pins down the earlier conclusion with the actual structures: there are ~12 DDR states expressed as BCM vote indices in aop, and no per-index MHz field to raise here. A real DDR overclock means retraining the top state's PLL in the XBL DDR init and adjusting the `bcm_lp5dr_scalar`, both signed and no-boot-risky. The `scan_freq_tables.py` NoC/LLCC hits from 3.4 are separate bus clocks, not these DDR states.
+
 ---
 
 ## Summary: what to edit, effect, ceiling, risk, re-sign
