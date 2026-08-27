@@ -1,0 +1,3 @@
+combined_stress dur=60s temp_before=37100
+mid: cpu_big=2400000 cpu_lil=1958400 gpu=1010000000 gpu_busy=0 % temp=53400
+combined_stress done temp_after=42100
