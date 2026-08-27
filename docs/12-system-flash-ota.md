@@ -102,10 +102,20 @@ scripts/build_flash_ota.sh --out bootset.zip \
 # then: adb reboot recovery ; adb sideload <zip>
 ```
 
-The updater is built once with `scripts/build_updater.sh` (needs the AOSP tree)
-and committed to `prebuilt/update-binary-arm64`; after that the flash-zip build is
-fully offline. `build_system_ota.sh` remains as the system-only convenience
-wrapper.
+The Edify `updater` is vendored at `prebuilt/update-binary-arm64` (a
+statically-linked arm64 ELF, built from the tree with `scripts/build_updater.sh`,
+lunch `lineage_arm64_bvN-ap2a-userdebug`, `m updater`), so the flash-zip build is
+fully offline. End-to-end verified: it assembles the zip and signs it with the
+testkey (whole-file signature present).
+
+Capability note: this updater registers `map_partition`, `update_dynamic_partitions`,
+`package_extract_file`, `block_image_update`, `mount`, `set_metadata`, `run_program`
+and more, but NOT `getprop`. So:
+- logical partitions use `map_partition("<name>")` to resolve the current-slot dm
+  device (correct and slot-safe, no getprop needed).
+- physical A/B partitions have the slot suffix baked at build time via `--slot`
+  (default `_a`, the device's current slot per recon); set `--slot _b` for the
+  other slot. For boot/dtbo/vbmeta/firmware, fastboot is usually the cleaner tool.
 
 ## The key
 

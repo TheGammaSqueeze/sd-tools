@@ -29,11 +29,15 @@ HERE="$(cd "$(dirname "$0")/.." && pwd)"
 OUT=""; UPD="${UPDATER:-$HERE/prebuilt/update-binary-arm64}"; KEYDIR="$HERE/keys"
 SIGNAPK="${SIGNAPK:-$HERE/tools/signing/signapk/signapk.jar}"
 LIBDIR="$(dirname "$SIGNAPK")"
+SLOT="${SLOT:-_a}"    # slot suffix for PHYSICAL A/B partitions (this updater has
+                      # no getprop, so the slot is fixed at build time; the device
+                      # is on _a per recon). Set --slot _b to target the b slot.
 declare -a PARTS=()
 while [ $# -gt 0 ]; do case "$1" in
   --out) OUT="$2"; shift 2;;
   --part) PARTS+=("$2"); shift 2;;
   --updater) UPD="$2"; shift 2;;
+  --slot) SLOT="$2"; shift 2;;
   --signapk) SIGNAPK="$2"; LIBDIR="$(dirname "$2")"; shift 2;;
   --key-dir) KEYDIR="$2"; shift 2;;
   *) echo "unknown arg $1"; exit 2;; esac; done
@@ -62,14 +66,18 @@ for spec in "${PARTS[@]}"; do
     have_logical=1
     sz=$(stat -c%s "$img"); rsz=$(( (sz + 1048575) / 1048576 * 1048576 ))
     echo "resize $name $rsz" >> "$OPLIST"
+    # map_partition resolves the current-slot dm device for the logical partition
+    # (no getprop needed; this updater registers map_partition).
     {
       echo "ui_print(\"writing logical $name...\");"
-      echo "package_extract_file(\"$name.img\", \"/dev/block/mapper/$name\");"
+      echo "package_extract_file(\"$name.img\", map_partition(\"$name\"));"
     } >> "$SCRIPT"
   else
+    # physical A/B partition: this updater has no getprop, so the slot suffix is
+    # baked at build time (--slot, default _a).
     {
-      echo "ui_print(\"writing $name (current slot)...\");"
-      echo "package_extract_file(\"$name.img\", \"/dev/block/bootdevice/by-name/$name\" + getprop(\"ro.boot.slot_suffix\"));"
+      echo "ui_print(\"writing $name (slot $SLOT)...\");"
+      echo "package_extract_file(\"$name.img\", \"/dev/block/bootdevice/by-name/$name$SLOT\");"
     } >> "$SCRIPT"
   fi
   echo "  + $name ($typ) <- $img"

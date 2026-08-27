@@ -114,6 +114,20 @@ echo "[11] sectools secimage pipeline imports and runs"
 python3 third_party/sectools/sectools.py secimage --help >/dev/null 2>&1 \
   && ok "sectools secimage runs" || bad "sectools secimage broken"
 
+echo "[12] build_flash_ota.sh produces a testkey-signed zip with the vendored updater"
+if [ -f prebuilt/update-binary-arm64 ] && [ -f tools/signing/signapk/signapk.jar ]; then
+  head -c 1048576 /dev/zero > "$tmp/sys.img"
+  if scripts/build_flash_ota.sh --out "$tmp/f.zip" --part system:"$tmp/sys.img" >/dev/null 2>&1 \
+     && unzip -l "$tmp/f.zip" 2>/dev/null | grep -q "update-binary" \
+     && python3 -c "import sys,struct; d=open('$tmp/f.zip','rb').read(); i=d.rfind(b'PK\x05\x06'); sys.exit(0 if struct.unpack('<H',d[i+20:i+22])[0]>0 else 1)"; then
+    ok "flash-ota build + signature"
+  else
+    bad "flash-ota build"
+  fi
+else
+  bad "flash-ota prerequisites (updater/signapk) missing"
+fi
+
 rm -rf "$tmp"
 echo
 echo "selftest: $pass passed, $fail failed"
