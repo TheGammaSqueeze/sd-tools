@@ -1,0 +1,84 @@
+# Flashing and recovery
+
+## Partition layout (measured from rawprogram*.xml)
+
+The device is A/B slotted. Every boot-chain image has an `_a` and `_b` copy:
+
+| image            | partitions                | source file            |
+|------------------|---------------------------|------------------------|
+| XBL              | `xbl_a` / `xbl_b`         | xbl_s.melf             |
+| XBL config       | `xbl_config_a` / `_b`     | xbl_config.elf         |
+| ABL              | `abl_a` / `abl_b`        | abl.elf                |
+| AOP              | `aop_a` / `aop_b`        | aop.mbn                |
+| CPUCP            | `cpucp_a` / `cpucp_b`    | cpucp.elf              |
+| DEVCFG           | `devcfg_a` / `devcfg_b`  | devcfg.mbn             |
+| HYP              | `hypvm` ...              | hypvm.mbn              |
+| multi-image QTI  | `multiimgqti_a` / `_b`   | multi_image_qti.mbn    |
+| multi-image OEM  | `multiimgoem_a` / `_b`   | multi_image.mbn        |
+| vendor_boot      | `vendor_boot_a` / `_b`   | vendor_boot.img        |
+
+Flash the slot the device is currently booting (`getprop ro.boot.slot_suffix`),
+or flash both to be safe. The GPU overclock only touches `vendor_boot`; the CPU
+and DDR overclock touch `devcfg` (and possibly `cpucp`).
+
+## Before touching XBL: confirm the fuse state
+
+See `docs/01`. If secure boot is fused you cannot boot a modified XBL and a bad
+one is EDL-only. On this device the whole chain is test-key signed, which is
+strong evidence the fuse is open, but confirm with `fastboot oem device-info`
+before flashing XBL or devcfg.
+
+## Path 1: fastboot (bootloader), the normal case
+
+For the GPU overclock (DTB only, no re-sign):
+
+```
+scripts/repack_vendor_boot.sh <stock_vendor_boot.img> parrot 1000 out.img
+fastboot flash vendor_boot_a out.img
+fastboot flash vendor_boot_b out.img     # or just the active slot
+fastboot reboot
+```
+
+For a firmware overclock (CPU/DDR), re-sign first (see docs/01), then:
+
+```
+scripts/resign_firmware.sh devcfg modified/firmware/devcfg.mbn modified/firmware/devcfg.signed.mbn
+fastboot flash devcfg_a modified/firmware/devcfg.signed.mbn
+fastboot flash devcfg_b modified/firmware/devcfg.signed.mbn
+```
+
+Note on vbmeta: repacking vendor_boot changes its AVB hash. On this package
+vbmeta is unsigned, so a device with verification disabled boots it directly. If
+the bootloader rejects it, either regenerate vbmeta with avbtool (bundled in the
+boot image editor) or flash a vbmeta with verification disabled
+(`fastboot flash vbmeta --disable-verity --disable-verification`).
+
+## Path 2: EDL 9008 (firehose), for recovery or a bricked bootloader
+
+The EDL Firehose programmer for this SoC is `xbl_s_devprg_ns.melf` (committed in
+`stock/firmware/`, and referenced by the package's `rawprogram*.xml` /
+`patch*.xml`). Force the device into EDL 9008 (usually a test-point or the
+`fastboot oem edl` / `adb reboot edl` route), then either:
+
+- QFIL (Qualcomm): load `xbl_s_devprg_ns.melf` as the programmer, add the
+  `rawprogram*.xml` and `patch*.xml`, flash.
+- edl (open source, bkerler, github.com/bkerler/edl):
+  ```
+  edl --loader=stock/firmware/xbl_s_devprg_ns.melf w abl_a modified/firmware/abl.signed.elf
+  edl --loader=stock/firmware/xbl_s_devprg_ns.melf w vendor_boot_a out.img
+  ```
+
+Because the fuse is (very likely) open, even a bad XBL is recoverable this way:
+the PBL still accepts the test-signed `xbl_s_devprg_ns.melf` loader. If the fuse
+were blown, only the stock signed loader would load and you would be limited to
+re-flashing stock images.
+
+## Recovery kit
+
+Keep these from `stock/firmware/` handy before any firmware flash:
+- `xbl_s.melf`, `abl.elf`, `devcfg.mbn`, `cpucp.elf`, `aop.mbn`, `xbl_config.elf`
+  (stock images to restore a slot),
+- `xbl_s_devprg_ns.melf` (the EDL programmer),
+- the package `rawprogram*.xml` / `patch*.xml` (partition map for QFIL/edl).
+
+Restore a slot by flashing the stock image back to the same `_a`/`_b` label.
