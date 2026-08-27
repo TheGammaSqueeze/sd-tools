@@ -173,6 +173,34 @@ stated minimum and MUST be validated on device (check `adb shell dumpsys Surface
 (`ro.hwui.use_vulkan`), test the UI too; the blob is usually better for the
 compositor.
 
+## Is the Anbernic Turnip patched, or stock upstream?
+
+Stock upstream, confirmed by building the exact same version (Mesa 26.1.1) from
+upstream and diffing:
+
+- Exported driver symbols: identical (Anbernic 234 vs upstream 235 FUNC symbols,
+  and the only differences are libc imports `__stack_chk_fail` / `__assert2` /
+  `__register_atfork`, not Turnip functions).
+- driconf per-game profile database: identical (both 106 `.exe` app profiles, the
+  same names `APlagueTaleRequiem_x64.exe`, `AtlasFallen (VK).exe`, `BatmanAK.exe`,
+  ... which is Mesa's stock `drirc`, unchanged).
+- Turnip source-file set: identical.
+- No fork markers (no K11MCH1 / bylaws / kimchi / custom option or game-hack
+  strings).
+
+The observable differences are not code:
+- Anbernic ships an unstripped debug build (6 `.debug` sections; a stock release
+  build has 0). That accounts for the size (16.9 vs 16.0 MB) and the ~11k
+  "unique" strings, which are all debug-symbol and shader-blob noise.
+- The AdrenoTools packaging metadata declares `minApi 34` (Android 14).
+
+So Anbernic simply took upstream Mesa 26.1.1, built it for their handheld (KGSL,
+Android, debug info left in), and packaged it. There is no vendor secret sauce.
+Consequence: our own build (Opportunity 2) at Mesa 26.3.0-devel, stripped, and
+targeting Android 12 (API 31) is a newer, better-targeted equivalent, and any
+real optimization has to come from build options / tuning, not from something
+Anbernic did.
+
 ## Opportunity 2: build our own optimized Turnip (viable, high value)
 
 Turnip is upstream Mesa, so we can build and tune it for a702/gen7 ourselves:
