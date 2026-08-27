@@ -50,3 +50,20 @@ simultaneously). Filled in as the campaign proceeds; raw logs under
 | Run | GPU MHz | CPU big MHz | GPU GFLOPS | CPU big mops | MEM copy GB/s | max temp | stable? |
 |-----|---------|-------------|-----------|--------------|---------------|----------|---------|
 | baseline | 1010 | 2400 | 129.2 | 298.2 | 37.8 | 38 C | yes (stock) |
+
+## Fan control (important)
+
+The RG 55G1 fan is a gpio-pwm (`gpio-pwm.ko`, DT node `soc/gpio_pwm`, pinctrl
+`fan_pwm_active`), NOT the `persist.gammaos.fan_mode` property. That prop is dead
+on the bvN GSI because the GSI does not carry the device-specific GammaOS fan
+service. Control it directly (root):
+
+```
+echo 255 > /sys/class/gpio_pwm/duty     # 0-255, 255 = full speed
+cat  /sys/class/gpio_pwm/speed          # tachometer RPM readout (read-only)
+```
+
+At duty 255 the fan runs ~7500-7900 RPM. Duty tracks speed; writes outside 0-255
+return EIO. The bench setup drives this; `scripts/bench/device_fan.sh <0-255>` is
+a standalone helper. Found by tracing the DT `gpio_pwm` node after the prop and
+the PMIC LPG pwmchip0 both failed.

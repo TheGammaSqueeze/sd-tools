@@ -1,6 +1,7 @@
 #!/system/bin/sh
 # restore stock behavior
 set -x
+echo 0 > /sys/class/gpio_pwm/duty      # fan off (real node)
 setprop persist.gammaos.fan_mode off
 pkill -CONT thermal-engine-v2 2>/dev/null; pkill -CONT thermal-engine 2>/dev/null
 start vendor.thermal-engine 2>/dev/null; start thermal-engine 2>/dev/null

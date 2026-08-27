@@ -1,7 +1,10 @@
 #!/system/bin/sh
 # Run ON DEVICE (root). Pin everything to max OPP, fan max, thermal off.
 set -x
-# fan to max (GammaOS fan service reads this prop)
+# FAN MAX. The real fan is a gpio-pwm at /sys/class/gpio_pwm/duty (0-255, 255=max);
+# /sys/class/gpio_pwm/speed is the tachometer RPM. persist.gammaos.fan_mode is a
+# dead prop on the GSI (no device fan service present), so drive the node directly.
+echo 255 > /sys/class/gpio_pwm/duty
 setprop persist.gammaos.fan_mode max
 # stop thermal throttling
 for s in vendor.thermal-engine thermal-engine vendor.thermal.chg-cdev vendor.thermal-hal-2-0 thermal@2.0; do stop $s 2>/dev/null; done
@@ -25,4 +28,4 @@ echo 1000000 > $G/idle_timer 2>/dev/null
 echo "=== state ==="
 for p in /sys/devices/system/cpu/cpufreq/policy*; do echo "$p gov=$(cat $p/scaling_governor) cur=$(cat $p/scaling_cur_freq) max=$(cat $p/scaling_max_freq)"; done
 echo "GPU cur=$(cat $G/gpuclk) max=$(cat $G/max_gpuclk) minlvl=$(cat $G/min_pwrlevel) maxlvl=$(cat $G/max_pwrlevel)"
-getprop persist.gammaos.fan_mode
+echo "fan duty=$(cat /sys/class/gpio_pwm/duty) rpm=$(cat /sys/class/gpio_pwm/speed)"
