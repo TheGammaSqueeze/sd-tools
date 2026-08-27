@@ -62,6 +62,23 @@ adb shell 'getprop ro.secure; getprop ro.adb.secure; id'
 # expect 0 / 0 / uid=0(root)
 ```
 
+## Device-validated
+
+Confirmed on the unit: after flashing the patched recovery and `adb reboot
+recovery`, the shell is keyless and root:
+
+```
+$ adb shell 'getprop ro.secure; getprop ro.adb.secure; id'
+0
+0
+uid=0(root) gid=0(root) ... context=u:r:su:s0
+```
+
+The debug-package recovery matched the unit's recovery fingerprint
+(`qti/parrot/parrot:12/.../eng.dell.20260807...:userdebug/test-keys`), so there
+was no version mismatch and the prop patch alone (no sepolicy step) gave root
+adb, as expected for this userdebug recovery.
+
 ## Caveats
 
 - Version match: the recovery.img here comes from the `V3.0_debug` package; the
