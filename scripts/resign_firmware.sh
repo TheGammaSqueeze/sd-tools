@@ -51,10 +51,10 @@ case "$MODE" in
     python3 "$QT" -v "$MV" "$ft" "$IN" -o "$OUT"
     ;;
   sectools)
-    ST="$HERE/external/qccsdk/sectools/sectools.py"
+    ST="$HERE/third_party/sectools/sectools.py"
     [ -f "$ST" ] || { echo "sectools missing; run scripts/setup.sh"; exit 1; }
     [ -n "$CHIP" ] || { echo "sectools mode needs the chipset arg (e.g. parrot/6450)"; exit 2; }
-    CFG="$HERE/external/qccsdk/sectools/config/$CHIP/${CHIP}_secimage.xml"
+    CFG="$HERE/third_party/sectools/config/$CHIP/${CHIP}_secimage.xml"
     echo "sectools ($TYPE) with $CFG"
     python3 "$ST" secimage -i "$IN" -g "$TYPE" -c "$CFG" \
       --cfg_selected_signer qti_presigned --sign -o "$(dirname "$OUT")/"

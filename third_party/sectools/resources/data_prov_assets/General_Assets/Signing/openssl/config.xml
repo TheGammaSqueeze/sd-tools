@@ -1,0 +1,12 @@
+<!--
+#===============================================================================
+# Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+# SPDX-License-Identifier: BSD-3-Clause-Clear
+#===============================================================================
+-->
+
+<METACONFIG>
+    <attestation_certificate_extensions>v3_attest.ext</attestation_certificate_extensions>
+    <ca_certificate_extensions>v3.ext</ca_certificate_extensions>
+    <openssl_configfile>opensslroot.cfg</openssl_configfile>
+</METACONFIG>

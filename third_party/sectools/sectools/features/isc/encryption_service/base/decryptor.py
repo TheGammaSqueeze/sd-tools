@@ -1,0 +1,20 @@
+#===============================================================================
+# Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+# SPDX-License-Identifier: BSD-3-Clause-Clear
+#===============================================================================
+
+from abc import ABCMeta, abstractmethod
+
+from six import add_metaclass
+
+
+@add_metaclass(ABCMeta)
+class BaseDecryptor(object):
+
+    def __init__(self, encryption_parameters, debug_dir=None):
+        self.encryption_parameters = encryption_parameters
+        self.debug_dir = debug_dir
+
+    @abstractmethod
+    def decrypt_segment(self, encrypted_binary_segment, segment_num):
+        raise NotImplementedError()

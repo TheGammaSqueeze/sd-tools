@@ -16,11 +16,11 @@
 #     --addlevel: insert a new top level (add_gpu_level.py) instead of raising
 #                 the existing top (default).
 #
-# Prereq: scripts/setup.sh has cloned+patched external/abie and it is built.
+# Prereq: the vendored third_party/abie is built (scripts/setup.sh).
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 IMG="$1"; FAMILY="$2"; MHZ="$3"; OUT="$4"; MODE="${5:-}"
-ABIE="${ABIE_DIR:-$HERE/external/abie}"
+ABIE="${ABIE_DIR:-$HERE/third_party/abie}"
 export AOSP_DTC="${AOSP_DTC:-$HERE/prebuilt/dtc-aosp-x86_64}"
 
 # Parrot=04-08, Montague=00-03, Ravelin=09-14.

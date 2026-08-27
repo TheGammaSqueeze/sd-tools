@@ -170,3 +170,115 @@ partition, staying within the CPRh voltage envelope. This is the concrete
 static-firmware CPU-OC path; the on-device epss_lut.sh route remains the simpler
 alternative. The decompressed tree is regenerable with extract_uefi.sh and is
 gitignored to keep the repo small.
+
+## ClockDxe CPU domain attribution
+
+Reverse engineering result: the six "CPU-range" frequency-config entries recorded
+above do NOT belong to the CPU (APSS) clock domain. They are the VCO settings of
+the GPU and display PLLs. The CPU cluster frequency plan is not statically
+compiled into this ClockDxe image at all. Details and evidence follow.
+
+### PE header summary
+
+section1.pe is a PE32+ (PE32PLUS) AArch64 (Machine 0xAA64) DXE, Subsystem 0xB
+(EFI runtime driver), EntryPoint RVA 0x1000.
+
+- ImageBase = 0x0. Because ImageBase is 0 and every section has RawPtr == VA and
+  RawSize == VirtualSize, file offset == RVA == VA throughout. No .reloc fixups
+  are needed to resolve pointer fields (they already hold their file offsets).
+- Sections:
+  - .text  VA 0x01000 VSize 0x19000 RawPtr 0x01000 RawSize 0x19000 (r-x)
+  - .data  VA 0x1a000 VSize 0x0e000 RawPtr 0x1a000 RawSize 0x0e000 (rw-)
+  - .reloc VA 0x28000 VSize 0x02000 RawPtr 0x28000 RawSize 0x02000
+
+### The frequency-config array layout
+
+Each PLL config block is 0x48 bytes:
+- +0x00 UINT64 nFreqHz  (this is the PLL VCO frequency, not a divided leaf clock)
+- +0x08 UINT32 = 0x00024080 (fixed Zonda config/marker dword)
+- +0x1c UINT32 = the Zonda L-value = round(nFreqHz / 19200000). Confirmed on every
+  block (e.g. 2020 MHz -> L=0x69=105, 105*19.2 = 2016 MHz; 1530 -> 0x4f=79).
+
+So the L-value the OC path needs is at file offset (blockhead + 0x1c), a UINT32
+equal to freq/19.2 MHz. The nFreqHz at +0x00 is a display value; the hardware
+programs the PLL from the L-value at +0x1c (plus the alpha/fractional fields in
+the following dwords).
+
+### Domain-descriptor evidence
+
+Qualcomm ClockDxe stores each PLL source as a source-descriptor whose first field
+is a `char* name`. The name strings and the descriptor rows that pair a
+pll-config-array head with an output frequency and a voltage corner resolve the
+owner of every array in the 0x16900..0x18400 region:
+
+| PLL source name | descriptor VA | config-array heads it owns | VCO ladder |
+|---|---|---|---|
+| disp_cc_pll0 | 0x24f98 | 0x168c0, 0x16908, 0x16950, 0x16998 | 960/1132/1516/1824 MHz |
+| gcc_gpll0    | 0x251a0 | 0x16d40 | 595 MHz |
+| gcc_gpll10   | 0x25ad0 | 0x17398 | 384 MHz |
+| gcc_gpll9    | 0x25d38 | 0x17648 | 806 MHz |
+| gcc_gpll4    | 0x25de0 | 0x17690 | 787 MHz |
+| gcc_gpll3    | 0x26278 | 0x17e38 ladder | 384..768 MHz |
+| gpu_cc_pll0  | 0x26358 | 0x181e8, 0x18230, 0x18278, 0x182c0, 0x18308, 0x18350, 0x18398 | 672/998/1209/1516/1689/1900/2016 MHz |
+| gpu_cc_pll1  | 0x26400 | 0x183e0 | 499 MHz |
+
+The six entries flagged earlier as "CPU-range" map as follows:
+
+| file offset | nFreqHz (VCO) | L(+0x1c) | actual owner |
+|---|---|---|---|
+| 0x16950 | 1518 MHz | 79 | disp_cc_pll0 |
+| 0x16998 | 1824 MHz | 95 | disp_cc_pll0 |
+| 0x182c0 | 1530 MHz | 79 | gpu_cc_pll0 |
+| 0x18308 | 1700 MHz | 88 | gpu_cc_pll0 |
+| 0x18350 | 1910 MHz | 99 | gpu_cc_pll0 |
+| 0x18398 | 2020 MHz | 105 | gpu_cc_pll0 |
+
+Confirmation that these are PLL VCO values and not CPU leaf clocks: each
+descriptor row pairs the array head with a much lower divided output frequency
+(gpu_cc_pll0's 2016 MHz VCO row at 0x26628 emits a 150 MHz leaf; the 1900 MHz row
+emits 1010 MHz; disp_cc_pll0's 1516 MHz VCO emits 608 MHz). The descriptor at
+0x26400 is literally named `gpu_cc_pll1`.
+
+### Where the real CPU (APSS) clocks are
+
+The genuine CPU cluster and DSU clock domains are present as named descriptors:
+
+- apcs_silver_post_acd_clk  (name string @0x138b1, domain-table entry @0x1a2b8)
+- apcs_gold_post_acd_clk    (name string @0x138ca, domain-table entry @0x1a2c8)
+- apcs_l3_post_acd_clk      (name string @0x138e1, domain-table entry @0x1a2d8)
+
+apcs_silver / apcs_gold are the CPU clusters (silver = efficiency, gold = prime),
+apcs_l3 is the DSU/L3. Also present: apss_cc controller descriptor @0x227e0, and
+the ACD debug divs apss_cc_silver/gold/l3_pre/post_acd_debug_div_clk_src.
+
+Critically, the domain-descriptor pointers these three entries carry (silver
+-> 0x272ac, gold -> 0x273f4, l3 -> 0x2753c) point at ZERO-FILLED .data slots.
+They are uninitialized runtime state, not a static BSP frequency ladder. There is
+no static apcs/perfcl/pwrcl/silver/gold/prime frequency-config array in this PE,
+and no UINT64 equal to any canonical SM6450 CPU frequency (2.0/2.2 GHz, i.e.
+2000000000 / 2200000000 / 2246400000) exists anywhere in the image.
+
+The CPU frequency plan is fetched at runtime through the routines named by the
+error strings `ClockApps_GetCPUFrequencyPlan failed for CLUSTER %d` (@0x18a3e)
+and `ClockApps_GetCPUFrequencyLevels failed for CLUSTER %d` (@0x18a72). These read
+the APSS EPSS/OSM LUT hardware, which is exactly the on-device epss_lut.sh route
+documented above. There is no static ClockDxe array to edit for a CPU overclock.
+
+### Conclusion on the CPU-OC edit offset
+
+The earlier hypothesis that 0x182c0..0x18398 (or 0x16950/0x16998) are the CPU
+cluster PLL ladder is DISPROVEN. Those offsets are gpu_cc_pll0 and disp_cc_pll0
+VCO tables; editing them changes GPU/display PLL frequencies, not the CPU.
+
+There is no confirmed static CPU frequency table in ClockDxe section1.pe to
+patch. The best-evidence CPU-OC path remains the runtime EPSS/OSM LUT
+(epss_lut.sh), not a uefi.elf ClockDxe binary edit. If a firmware-static CPU-OC is
+desired it must be pursued in whatever DXE actually programs the EPSS LUT from the
+CPRh/OSM tables (not this generic PLL ClockDxe), and any change must respect the
+CPRh voltage-envelope ceiling or the cluster will brown out.
+
+For reference, if a GPU overclock via gpu_cc_pll0 were ever wanted, the top entry
+is at file offset 0x18398: nFreqHz UINT64 = 0x000000007866C100 (2020 MHz), L-value
+UINT32 at 0x183b4 = 0x00000069 (105). Raising it means writing both the nFreqHz
+and L = round(newHz/19200000), then re-signing and reflashing xbl. That is a GPU
+change, not CPU, and is out of scope for the CPU overclock goal.

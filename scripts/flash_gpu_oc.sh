@@ -60,7 +60,7 @@ echo "  $n device trees, $((n-bad)) valid"
 rm -rf "$tmp"
 
 echo "== 3. build verification-disabled vbmeta =="
-AVBTOOL="${AVBTOOL:-$HERE/external/abie/aosp/avb/avbtool.v1.2.py}"
+AVBTOOL="${AVBTOOL:-$HERE/third_party/abie/aosp/avb/avbtool.v1.2.py}"
 "$HERE/scripts/make_disabled_vbmeta.sh" "$VBMETA_OUT" >/dev/null
 echo "  $VBMETA_OUT"
 

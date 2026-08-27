@@ -1,0 +1,40 @@
+<!--
+#===============================================================================
+# Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+# SPDX-License-Identifier: BSD-3-Clause-Clear
+#===============================================================================
+-->
+
+<METACONFIG>
+    <is_mrc>False</is_mrc>
+
+    <root_pre>False</root_pre>
+    <attest_ca_pre>False</attest_ca_pre>
+    <attest_pre>False</attest_pre>
+
+    <root_cert_params>
+    C=US
+    ST=California
+    L=San Diego
+    OU=General Use Test Key (for testing only)
+    OU=CDMA Technologies
+    O=SecTools
+    CN=Generated Test Root CA
+    </root_cert_params>
+
+    <attest_ca_cert_params>
+    C=US
+    ST=California
+    L=San Diego
+    O=SecTools
+    CN=Generated Test Attestation CA
+    </attest_ca_cert_params>
+
+    <attest_cert_params>
+    C=US
+    ST=California
+    L=San Diego
+    O=SecTools
+    CN=SecTools Test User
+    </attest_cert_params>
+</METACONFIG>

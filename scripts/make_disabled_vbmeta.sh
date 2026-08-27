@@ -18,7 +18,7 @@
 # (the avbtool flag and the fastboot flags are belt-and-braces; either disables).
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
-AVB="${AVBTOOL:-$HERE/external/abie/aosp/avb/avbtool.v1.2.py}"
+AVB="${AVBTOOL:-$HERE/third_party/abie/aosp/avb/avbtool.v1.2.py}"
 OUT="$1"
 [ -f "$AVB" ] || { echo "avbtool not found at $AVB (run scripts/setup.sh)"; exit 1; }
 

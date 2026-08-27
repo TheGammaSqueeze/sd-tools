@@ -9,3 +9,11 @@ __pycache__/
 
 # Decompressed UEFI FV (regenerate via tools/fw/extract_uefi.sh)
 /modified/uefi_ext/
+
+# Vendored abie build artifacts (regenerate with third_party/abie/gradlew build)
+/third_party/abie/**/build/
+/third_party/abie/.gradle/
+/third_party/abie/build/
+
+# Large regenerable repacked images (produced by scripts/repack_vendor_boot.sh)
+/modified/firmware/*vendor_boot*.img

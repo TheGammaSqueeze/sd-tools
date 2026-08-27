@@ -62,7 +62,16 @@ scripts/repack_vendor_boot.sh <vendor_boot.img> parrot 1000 <out.img>           
 scripts/resign_firmware.sh abl modified/firmware/abl.elf modified/firmware/abl.signed.elf   # re-sign (unfused)
 ```
 
-External heavy tools (sectools ~270MB, the boot image editor toolchain) are
-fetched by `scripts/setup.sh` into `external/`. The load-bearing small pieces
-(AOSP dtc, the secp384r1 test keys and certs, qtestsign) are committed so the
-repo is self-contained for the common workflows.
+Everything is vendored in this repo; nothing is fetched from the network:
+
+```
+prebuilt/dtc-aosp-x86_64   AOSP dtc (prebuilt)
+third_party/abie           the PATCHED Android_boot_image_editor (source, builds with its gradlew)
+third_party/sectools       genuine QTI sectools + secp384r1 test keys
+tools/signing/qtestsign    stub MBN signer for unfused parts
+tools/signing/testkeys-secp384r1, stock/certs   the certs
+```
+
+`scripts/setup.sh` only builds the vendored abie (and rebuilds the dtc binary
+only if the prebuilt is missing). Regenerable artifacts (the abie build output,
+the decompressed UEFI tree, the 100MB repacked images) are gitignored.
