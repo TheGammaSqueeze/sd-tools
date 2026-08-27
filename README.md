@@ -75,12 +75,15 @@ scripts/selftest.sh                                             # regression-tes
 
 ## Overclock workflows
 
+This unit is RavelinP (docs/10), so target the Ravelin trees (stock top 1010 MHz):
+
 ```
-scripts/gpu_overclock.sh stock/dtb/06.dtb 1000 modified/dtb/06.parrot.gpu1000.dtb   # raise top level
-tools/dtb/add_gpu_level.py <in.dts> 1000 <out.dts>                                   # add a new top level
-scripts/repack_vendor_boot.sh <vendor_boot.img> parrot 1000 <out.img>               # end-to-end repack
+tools/dtb/add_gpu_level.py <in.dts> 1080 <out.dts> --corner=TURBO_L1              # add a new top level
+scripts/repack_vendor_boot.sh <vendor_boot.img> ravelin 1080 <out.img>           # end-to-end repack
+scripts/flash_gpu_oc.sh <vendor_boot.img> ravelin 1080 --addlevel                # repack + vbmeta + flash
 scripts/resign_firmware.sh abl modified/firmware/abl.elf modified/firmware/abl.signed.elf   # re-sign (unfused)
 ```
+(The Parrot examples elsewhere are for the other SoC in the package, not this unit.)
 
 Everything is vendored in this repo; nothing is fetched from the network:
 
