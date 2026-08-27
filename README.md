@@ -10,8 +10,11 @@ The package bundles three SoCs selected at boot by `qcom,msm-id`:
 | Montague | SM7315-class | Snapdragon 4 Gen x | Adreno 613 |
 | Ravelin  | SM4375 | Snapdragon 4 Gen 2   | Adreno 613 |
 
-The physical unit is exactly one of these. Confirm on device with
-`getprop ro.board.platform` and `cat /sys/class/kgsl/kgsl-3d0/gpu_model`.
+The physical unit is exactly one of these. **Confirmed by on-device recon
+(docs/10): the unit is the Anbernic RG 55G1 = RavelinP (`soc_id 654`,
+`SG4250P`/`SG_RAVELINP`), Adreno A12/613, Android 14, bootloader unlocked.** So
+the Ravelin tables apply; the Parrot/Adreno 710 analysis is for a different SoC in
+the package. `ro.board.platform=parrot` is only the platform family name.
 
 ## What is established
 
@@ -39,6 +42,7 @@ The physical unit is exactly one of these. Confirm on device with
 - [docs/07-xbl-epss-lut.md](docs/07-xbl-epss-lut.md) - ARM64/UEFI analysis: no static EPSS LUT in the images, ClockDxe attribution, the live-LUT route.
 - [docs/08-adjustable-levers.md](docs/08-adjustable-levers.md) - operator-facing summary of every adjustable lever, safest to hardest.
 - [docs/09-gpu-driver-comparison.md](docs/09-gpu-driver-comparison.md) - stock Qualcomm `vulkan.adreno.so` (v0615.91) vs Mesa Turnip 26.1.1: extraction, side-by-side, and the drop-in / build-our-own opportunity.
+- [docs/10-ondevice-recon.md](docs/10-ondevice-recon.md) - live adb recon: the unit is RavelinP (RG 55G1), Android 14, unlocked; real CPU/GPU frequencies; corrections to the Parrot assumption.
 - [PROGRESS.md](PROGRESS.md) - running ledger of done vs open work.
 
 ## Layout
