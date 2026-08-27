@@ -32,12 +32,16 @@ LIBDIR="$(dirname "$SIGNAPK")"
 SLOT="${SLOT:-_a}"    # slot suffix for PHYSICAL A/B partitions (this updater has
                       # no getprop, so the slot is fixed at build time; the device
                       # is on _a per recon). Set --slot _b to target the b slot.
+DEVICE="${DEVICE:-parrot}"        # pre-device for the OTA metadata (must match ro.product.device)
+POST_TS="${POST_TS:-2000000000}"  # post-timestamp; > device build date so recovery does not reject it
 declare -a PARTS=()
 while [ $# -gt 0 ]; do case "$1" in
   --out) OUT="$2"; shift 2;;
   --part) PARTS+=("$2"); shift 2;;
   --updater) UPD="$2"; shift 2;;
   --slot) SLOT="$2"; shift 2;;
+  --device) DEVICE="$2"; shift 2;;
+  --post-timestamp) POST_TS="$2"; shift 2;;
   --signapk) SIGNAPK="$2"; LIBDIR="$(dirname "$2")"; shift 2;;
   --key-dir) KEYDIR="$2"; shift 2;;
   *) echo "unknown arg $1"; exit 2;; esac; done
@@ -88,6 +92,17 @@ if [ "$have_logical" = 1 ]; then
   sed -i '/show_progress(0.050000, 0);/a update_dynamic_partitions(package_extract_file("dynamic_partitions_op_list"));' "$SCRIPT"
 fi
 echo 'ui_print("Done. Reboot; the active slot is unchanged.");' >> "$SCRIPT"
+
+# OTA metadata: recovery (Android 11+) requires META-INF/com/android/metadata to
+# route the package. ota-type=BLOCK marks it non-A/B so the Edify update-binary
+# runs; pre-device must match ro.product.device; post-timestamp must be newer
+# than the device build so it is not rejected as a downgrade.
+mkdir -p "$t/META-INF/com/android"
+cat > "$t/META-INF/com/android/metadata" <<META
+ota-type=BLOCK
+pre-device=$DEVICE
+post-timestamp=$POST_TS
+META
 
 # update-binary
 [ -f "$UPD" ] || { echo "updater not found at $UPD (build with scripts/build_updater.sh)"; exit 1; }

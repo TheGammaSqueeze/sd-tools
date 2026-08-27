@@ -123,3 +123,29 @@ and more, but NOT `getprop`. So:
 in the device's `otacerts.zip` (sha256 `A4:0D:A8:0A:59:D1:70:CA:...`). Signing is
 done with `signapk -w` (whole-file OTA signature), which is what recovery's
 `verify_file` checks. Fastbootd flashing does not use the key.
+
+## Device finding: this recovery is A/B-payload-only
+
+Tested on the unit (root recovery). The whole-file testkey signature verifies and
+the `META-INF/com/android/metadata` is parsed, but the recovery install path then
+rejects the package:
+
+```
+E:Unexpected ota package type, expects AB, actual BLOCK
+Install from ADB completed with status 1.
+```
+
+So this device's recovery only accepts A/B `update_engine` payload OTAs; it will
+not run a legacy Edify (BLOCK) package through `adb sideload`, no matter how it is
+signed. A current-slot, no-slot-switch system flash therefore cannot go through
+the recovery install path here. The working routes for a system-only, no-slot-
+switch flash on this device are:
+- fastbootd: `adb reboot fastboot ; fastboot flash system <gsi>.img` (canonical
+  GSI flash, current slot, auto-resized, no slot switch). Recommended.
+- root recovery bypass: with a root recovery shell (docs/13), run the vendored
+  update-binary directly on the package (skips the recovery's AB-only check),
+  which executes the Edify script (`update_dynamic_partitions` + `map_partition`
+  write) on the current slot.
+
+The A/B payload path (native to this recovery) writes the OTHER slot and switches
+slots, which is not what we want.
