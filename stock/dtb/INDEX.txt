@@ -1,0 +1,17 @@
+00.dtb  off=0x00000000 size=0x566a0  Qualcomm Technologies, Inc. Montague 4Gb SoC
+01.dtb  off=0x000566a0 size=0x565c4  Qualcomm Technologies, Inc. Montague SoC
+02.dtb  off=0x000acc64 size=0x566a0  Qualcomm Technologies, Inc. MontagueP 4Gb SoC
+03.dtb  off=0x00103304 size=0x565c4  Qualcomm Technologies, Inc. MontagueP SoC
+04.dtb  off=0x001598c8 size=0x5e43a  Qualcomm Technologies, Inc. Parrot 4Gb SoC
+05.dtb  off=0x001b7d02 size=0x5e352  Qualcomm Technologies, Inc. Parrot SG SoC
+06.dtb  off=0x00216054 size=0x5e35e  Qualcomm Technologies, Inc. Parrot SoC
+07.dtb  off=0x002743b2 size=0x5e36e  Qualcomm Technologies, Inc. ParrotP SG SoC
+08.dtb  off=0x002d2720 size=0x5e37a  Qualcomm Technologies, Inc. ParrotP SoC
+09.dtb  off=0x00330a9a size=0x56606  Qualcomm Technologies, Inc. Ravelin 4Gb SoC
+10.dtb  off=0x003870a0 size=0x4e965  Qualcomm Technologies, Inc. Ravelin SG SoC
+11.dtb  off=0x003d5a05 size=0x5652a  Qualcomm Technologies, Inc. Ravelin SoC
+12.dtb  off=0x0042bf2f size=0x56652  Qualcomm Technologies, Inc. RavelinP 4Gb SoC
+13.dtb  off=0x00482581 size=0x4e965  Qualcomm Technologies, Inc. RavelinP SG SoC
+14.dtb  off=0x004d0ee6 size=0x56576  Qualcomm Technologies, Inc. RavelinP SoC
+
+15 device trees written to stock/dtb/

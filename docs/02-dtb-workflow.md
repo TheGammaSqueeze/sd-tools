@@ -1,0 +1,108 @@
+# Qualcomm device tree workflow
+
+## Why the distro dtc is wrong here
+
+Qualcomm device trees must be decompiled and recompiled with the **AOSP/Android
+dtc**, not the distro `dtc` (1.6.x on most Linux). The concrete failures of the
+distro dtc on these trees:
+
+- It renders a 4-byte integer property whose bytes are printable as an escaped
+  string. The top GPU frequency is the clearest example:
+  - distro dtc:  `qcom,gpu-freq = "8\aC";`
+  - AOSP dtc:    `qcom,gpu-freq = <0x38074300>;`  (940 MHz)
+  A text edit of the string form silently corrupts the value.
+- It is noisier and less faithful to the phandle / `__symbols__` / `/memreserve/`
+  layout that overlay-capable Qualcomm trees carry.
+
+The AOSP dtc is `DTC 1.4.4-Android-build`, built from
+`github.com/xzr467706992/dtc-aosp` (the AOSP `external/dtc`). A prebuilt x86_64
+binary is committed at `prebuilt/dtc-aosp-x86_64`; `scripts/setup.sh` rebuilds
+it if missing. This is the same dtc lineage KonaBess ships to run on device.
+
+## The appended-FDT container
+
+Qualcomm boot/vendor_boot images store one FDT per SoC variant, simply
+concatenated. There is no QCDT header table on these parts; the bootloader
+selects the matching tree at runtime by `qcom,msm-id` / `qcom,board-id`, and by
+index via `ro.boot.dtb_idx`.
+
+- Split: scan for the FDT magic `d0 0d fe ed`, read each FDT's own `totalsize`
+  (big-endian u32 at magic+4) and advance by it. `tools/dtb/split_dtb.py`.
+- Join: plain in-order concatenation, each FDT self-describes its size. Order
+  MUST match the split order. `tools/dtb/join_dtb.py`.
+
+## Round-trip fidelity (measured)
+
+True byte-for-byte identity with the vendor blob is not achievable through any
+dtc. The vendor toolchain merges the string table (short property names stored
+as suffixes of longer ones); dtc lays the string table out differently, which
+shifts string offsets and therefore the struct-block bytes. On every one of the
+15 trees in this package the recompiled DTB is exactly 22 bytes larger (a few
+duplicate short strings such as `proxy_rx`, `loopback`, `proxy_tx` that the
+vendor had suffix-merged).
+
+The guarantee that matters for booting is semantic identity, and it holds:
+
+```
+tools/dtb/verify_roundtrip.sh stock/dtb/vendor_boot.dtb-section
+```
+
+For all 15 trees this reports `SEMANTIC-MATCH` (decompiling the stock DTB and
+decompiling the recompiled DTB yield identical DTS) and `idempotent` (a second
+recompile is byte-stable). In other words the recompiled tree describes exactly
+the same device; the device parses it identically. Chasing byte-identity would
+require reimplementing the vendor's string suffix-merge and buys nothing
+functional.
+
+## Editing: the format the device expects
+
+Because the struct block round-trips faithfully, an edit made in the DTS
+produces a device-correct DTB. A surgical GPU overclock edit changes only the
+intended lines:
+
+```
+dtc=prebuilt/dtc-aosp-x86_64
+$dtc -q -I dtb -O dts stock/dtb/06.dtb -o work.dts
+# edit qcom,gpu-freq etc. in work.dts
+$dtc -q -I dts -O dtb work.dts -o modified/dtb/06.parrot.edited.dtb
+# confirm the diff is only your change:
+diff <($dtc -q -I dtb -O dts stock/dtb/06.dtb) <($dtc -q -I dtb -O dts modified/dtb/06.parrot.edited.dtb)
+```
+
+Rules for adding or removing nodes so the tree stays valid:
+
+- Keep `#address-cells` / `#size-cells` consistent; two-cell values render as
+  `<0x0 0xVALUE>`. `qcom,gpu-freq` is a single cell.
+- If you reference another node by `&label` or phandle, that label must resolve.
+  The AOSP dtc regenerates phandles correctly on recompile.
+- When adding a GPU pwrlevel, renumber the `reg` indices contiguously and fix
+  `qcom,initial-pwrlevel` / `qcom,ca-target-pwrlevel`. See
+  `docs/04-overclocking-research.md`.
+- After any edit, run the recompile+decompile diff above and re-split/rejoin,
+  then repack the image.
+
+## Repack path (via the patched boot image editor)
+
+`patches/abie-use-aosp-dtc.patch` makes cfig's Android_boot_image_editor honour
+an `AOSP_DTC` environment variable so its unpack/repack uses our AOSP dtc instead
+of the distro dtc. Apply it after `scripts/setup.sh` clones abie:
+
+```
+cd external/abie && git apply ../../patches/abie-use-aosp-dtc.patch
+export AOSP_DTC=$(pwd)/../../prebuilt/dtc-aosp-x86_64
+./gradlew unpack   # dtb decompiles with AOSP dtc (gpu-freq shows as <0x..>)
+# edit build/unzip_boot/dtb.N.dts
+./gradlew pack     # repacks vendor_boot.img
+```
+
+Alternatively edit the split DTBs directly with the tools above and rebuild the
+dtb section, which avoids the Gradle toolchain entirely.
+
+## AVB / vbmeta note
+
+The dtb lives inside vendor_boot, which is covered by a vbmeta hash descriptor.
+Repacking vendor_boot changes its hash. On this package vbmeta is unsigned, so a
+device with verification disabled boots the repacked image directly; otherwise
+vbmeta must be regenerated (avbtool, available in the boot image editor) or
+verification disabled. This is separate from the XBL/ABL secure-boot chain in
+`docs/01`.

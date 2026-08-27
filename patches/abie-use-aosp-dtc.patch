@@ -1,0 +1,18 @@
+diff --git a/bbootimg/src/main/kotlin/rom/fdt/DTC.kt b/bbootimg/src/main/kotlin/rom/fdt/DTC.kt
+index ec85629..ca5dac0 100644
+--- a/bbootimg/src/main/kotlin/rom/fdt/DTC.kt
++++ b/bbootimg/src/main/kotlin/rom/fdt/DTC.kt
+@@ -27,7 +27,12 @@ import java.io.InputStream
+ 
+ class DTC {
+     private val log = LoggerFactory.getLogger(DTC::class.java)
+-    private val dtcBin = Helper.prop("dtcBin") ?: "dtc"
++    // Qualcomm device trees must be round-tripped with the AOSP/Android dtc, not
++    // the distro dtc: the Android dtc preserves phandles, __symbols__, memreserve
++    // and renders 4-byte integer properties (e.g. qcom,gpu-freq) as <0x..> rather
++    // than mangling them into escaped strings. Honour AOSP_DTC first, then the
++    // dtcBin property, then fall back to whatever "dtc" is on PATH.
++    private val dtcBin = System.getenv("AOSP_DTC") ?: Helper.prop("dtcBin") ?: "dtc"
+ 
+     data class DtbEntry(
+         var seqNo: Int = 0,

@@ -1,0 +1,8 @@
+# External heavy tools fetched by scripts/setup.sh
+/external/
+
+# Build scratch
+*.pyc
+__pycache__/
+/tmp/
+*.log
