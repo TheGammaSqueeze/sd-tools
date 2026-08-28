@@ -1404,3 +1404,20 @@ context preserved, e2fsck clean) and staged for a clean foreground flash + real-
 (WLE/WildLife) revalidation next tick. Device still on the prior working ULTRA+LOD
 (16330528) this tick. Patch: turnip-pow-squaring.patch. Also added gamebench_pm (the
 hand-squared reference variant) to the tree.
+
+## pow-squaring ULTRA: flashed + real-title validated (clean, +0.6/+1.1% on 3DMark)
+
+Baked the pow-squaring pattern into the default-on ULTRA driver (16337896), flashed
+vendor_turnip_ultra.img to the device (fastbootd, foreground, single) and validated on
+real titles. Deployed-driver sanity (no env, ULTRA default-on): gamebench 16.8 (the +20%
+pow win is live vs the old 14.0), gpubench 129 (reassoc intact). 3DMark:
+- Wild Life:  723 (prior ULTRA 719, +0.6%), avg 4.34 fps - renders clean
+- Wild Life Extreme: 186 (prior ULTRA 184, +1.1%), avg 1.12 fps - renders clean
+Screenshot-verified both: WLE mid-run shows the alien-landscape scene (two moons, spires,
+terrain) with no black band / speckle (the corruption signature that killed compute-fp16),
+and the Wild Life result art relights correctly. So pow-squaring is correctness-safe on
+real content. The 3DMark titles gain little because they use little constant-integer-
+exponent specular (their pow calls are non-integer / masked), whereas classic Blinn-Phong
+lighting (gamebench) gains +20%. Net: the deployed ULTRA is now the pow-squaring build,
+strictly >= the prior ULTRA on every measured title and much faster on pow-heavy shaders.
+Device left on this validated ULTRA (16337896).
