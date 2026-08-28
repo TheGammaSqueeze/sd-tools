@@ -83,6 +83,22 @@ managed with no runtime handle -> a DDR OC needs editing the AOP/BCM vote table 
 DDR training in firmware (deep, EDL-recovery risk). Net: no component can be
 stably overclocked from userspace; further gains require a kernel module (CPU) or
 deep firmware reflash (GPU GMU-ACD, MEM AOP/DDR).
+
+`a662_gmu.bin` was reverse-inspected to close the GMU avenue: it is a block table
+(records `{u32 addr; 0; type=1; u32 size}`) of GMU processor CODE (strings
+`GmuMain`, `GmuPwrStart`, `GmuPwrGxBwVote`, `EcpRecoverFromFault`, ...), unsigned
+(deadbeef tail, no MBN footer), with NO freq/DCVS/ACD table inside — those are
+delivered to the GMU at runtime over HFI from the DTB pwrlevels. So the GMU blob
+has no tunable table to patch; changing GPU DVFS behaviour there would mean
+rewriting the GMU RISC firmware. The DTB-side levers (freq, RPMh corner) are the
+only GMU-adjacent knobs, and both are exhausted.
+
+Bottom line for this unit: the stable operating point is the stock max
+(GPU 1010 / CPU 2400+1958.4 / DDR stock). The accessible OC surface is fully
+characterized and exhausted; the only unexplored paths are (a) a hand-built
+android12-5.10 GKI ioremap module to poke the EPSS CPU LUT (needs the GKI kernel
+source / Module.symvers, currently unavailable), and (b) deep XBL/AOP DDR-training
+or GMU-RISC firmware reflashes (high risk, EDL-recovery).
 | gpu in-place 1050 | 1050 | - | - | - | - | - | no (SoC reset under sustained load) |
 | gpu in-place 1100 | 1100 | - | - | - | - | - | no (SoC reset under sustained load) |
 
