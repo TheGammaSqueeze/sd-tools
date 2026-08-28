@@ -1216,3 +1216,34 @@ Verified the shipped aggressive package (`GammaOS-Turnip-Adreno613-AGGRESSIVE-v1
   to trip a DEVICE_LOST now finishes within the GPU timeout. A useful side effect for
   reassociable compute, though not a general stability fix.
 The aggressive build is stable, correct, and turnkey (no env needed).
+
+## Optimization loop restart: aggressive = baseline, hunting FPS/scaling levers
+
+Per direction, the AGGRESSIVE build (dw_noubwc + constant-FMA reassociation ON by
+default) is now the DEPLOYED BASELINE (vendor_turnip_aggressive.img, driver 16329768).
+Set up a 5-minute optimization cron to keep iterating on FPS/lower-GPU-load levers.
+
+Surveyed the unexplored surface for lossless/near-lossless scaling levers:
+- Fragment Density Map (TU_DEBUG=fdm): needs an app-provided FDM attachment, not a
+  blanket force - not a simple driver-side win.
+- Fragment Shading Rate / VRS: Turnip supports it (foveation regs); could be forced
+  globally to shade 2x1/2x2 blocks, but app must currently drive it.
+- fp16/mediump forcing: the highest-value lever (below).
+
+Reconfirmed fragment-bound baselines (gfxbench, 1080p @1010) - this IS the
+fragment-ALU-bound measure (3DMark is bandwidth/geometry-bound so it will NOT show
+fragment-ALU or fp16 wins):
+
+| path | aggressive Turnip | stock |
+|------|-------------------|-------|
+| gfxbench fp32 | 71.7 | 76.8 |
+| gfxbench mediump (fp16) | 84.9 | 126.2 |
+
+Two fp16 levers identified: (a) FORCE-demote fp32 fragment ALU to fp16 -> would run
+at Turnip's fp16 rate ~85 vs its fp32 72 = +18% for fragment-bound games (lossy
+precision, verify visually); (b) the bigger prize: **Turnip's fp16 fragment codegen
+is only 85 vs stock's 126** (1.18x its fp32 vs stock's 1.64x) - stock vectorizes fp16
+into vec2/half2 for ~2x rate while Turnip emits scalar mad.f16. Fixing ir3 fp16
+packing would lift declared-mediump shaders AND force-fp16 toward 126 (1.75x its
+fp32). These are the next cron-tick targets. Fragment-bound bench (gfxbench +
+gfxbench_mp) kept in-tree so these wins are measurable.
