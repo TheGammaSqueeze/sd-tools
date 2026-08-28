@@ -1,0 +1,42 @@
+diff --git a/src/freedreno/vulkan/tu_sampler.cc b/src/freedreno/vulkan/tu_sampler.cc
+index eec5ca21..bc449491 100644
+--- a/src/freedreno/vulkan/tu_sampler.cc
++++ b/src/freedreno/vulkan/tu_sampler.cc
+@@ -110,6 +110,28 @@ tu_CreateSampler(VkDevice _device,
+    float min_lod = CLAMP(pCreateInfo->minLod, 0.0f, 4095.0f / 256.0f);
+    float max_lod = CLAMP(pCreateInfo->maxLod, 0.0f, 4095.0f / 256.0f);
+ 
++   /* GammaOS optional texture LOD bias (GAMMA_LODBIAS env, default 0): positive
++    * bias samples smaller mips -> less texture bandwidth + better cache hits on
++    * bandwidth-bound content, trading a little sharpness. Only for linear-mipmap
++    * samplers (biasing a non-mipmapped sampler does nothing useful). */
++   float gamma_lod_bias = 0.0f;
++   {
++      const char *lb = os_get_option("GAMMA_LODBIAS");
++      if (lb && miplinear)
++         gamma_lod_bias = strtof(lb, NULL);
++   }
++
++   /* GammaOS optional performance mode (GAMMA_PERF env, OFF by default): clamp
++    * anisotropic filtering off and bias mip selection up, trading a little texture
++    * sharpness for TP/bandwidth savings in real games. Does not affect the default
++    * driver - only applies when the app is launched with GAMMA_PERF set. */
++   static const int gamma_perf = os_get_option("GAMMA_PERF") ? 1 : 0;
++   if (gamma_perf) {
++      aniso = 0;
++      float bias = 0.5f;
++      min_lod = CLAMP(min_lod + bias, 0.0f, 4095.0f / 256.0f);
++   }
++
+    sampler->vk.ycbcr_conversion = ycbcr_conversion ?
+       vk_ycbcr_conversion_from_handle(ycbcr_conversion->conversion) : NULL;
+ 
+@@ -155,7 +177,7 @@ tu_CreateSampler(VkDevice _device,
+          A6XX_TEX_SAMP_0_WRAP_S(tu6_tex_wrap(pCreateInfo->addressModeU)) |
+          A6XX_TEX_SAMP_0_WRAP_T(tu6_tex_wrap(pCreateInfo->addressModeV)) |
+          A6XX_TEX_SAMP_0_WRAP_R(tu6_tex_wrap(pCreateInfo->addressModeW)) |
+-         A6XX_TEX_SAMP_0_LOD_BIAS(pCreateInfo->mipLodBias);
++         A6XX_TEX_SAMP_0_LOD_BIAS(pCreateInfo->mipLodBias + gamma_lod_bias);
+       sampler->descriptor[1] =
+          COND(pCreateInfo->flags & VK_SAMPLER_CREATE_NON_SEAMLESS_CUBE_MAP_BIT_EXT,
+             A6XX_TEX_SAMP_1_CUBEMAPSEAMLESSFILTOFF) |

@@ -1323,3 +1323,17 @@ Also closed two deep avenues this pass: ir3 fp16 vec2-packing needs novel backen
 rpt-group formation from independent scalar ops (multi-day, deferred); 16-bit
 texture sampling is ALREADY auto-enabled by ir3 when results are consumed at fp16
 (so ULTRA's fp16 already gets the texture-bandwidth benefit).
+
+## Texture LOD bias: marginal (+1.8% WLE, within noise) - opt-in env only
+
+Added GAMMA_LODBIAS env (positive texture LOD bias -> sample smaller mips = less
+texture bandwidth, for bandwidth-bound content; linear-mipmap samplers only).
+Tested on top of ULTRA fp16, WLE (bandwidth-influenced, GPU @1010):
+- fp16 baseline: 171
+- fp16 + GAMMA_LODBIAS=2.0: 174 (+1.8%, within run variance)
+Renders CLEAN (screenshot verified - textures slightly softer but no corruption).
+So LOD bias is a marginal, quality-costing lever - NOT worth making default, but
+kept as an opt-in env (GAMMA_LODBIAS=<n>) for users squeezing bandwidth-bound
+titles. fp16 already picked most of WLE's headroom; the residual is not texture
+bandwidth. Deployed driver now carries the option (ULTRA + GAMMA_LODBIAS, default
+0 = identical to ULTRA). Patch: turnip-lodbias.patch.
