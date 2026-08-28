@@ -22,6 +22,24 @@ throttling stopped, everything pinned to its max OPP.
   - `gpubench` - Vulkan compute FMA kernel, reports GFLOPS (also a GPU stability
     probe). 32768 groups is the safe size (65536 triggers a device-lost).
 
+## Running the campaign
+
+`scripts/bench/campaign.sh` orchestrates both modes against an online rooted
+device and writes labelled, parseable results under `bench/results/<label>/`:
+
+```
+scripts/bench/campaign.sh run baseline 120     # per-component + 120s combined
+scripts/bench/campaign.sh run gpu_oc_1100 120  # after applying the GPU OC
+scripts/bench/campaign.sh table                # regenerate the tables below
+```
+
+Each `run` pushes the tools, applies `device_setup_maxperf.sh` (fan max via the
+real gpio-pwm node, thermal-engine stopped, every OPP pinned to max), runs the
+per-component bench (mode B) and the combined all-max stress (mode A), and saves
+`percomponent.txt` + `combined.txt` + `state.txt`. `campaign.sh table` runs
+`parse_bench.py`, which computes each non-baseline label's delta against the
+`baseline` run and the combined-stress sustained clocks / peak temp / survival.
+
 ## Stock-max baseline
 
 Pinned to stock max OPPs (CPU big 2400 MHz, little 1958.4 MHz, GPU 1010 MHz),
