@@ -1203,3 +1203,16 @@ compute-heavy workloads (DXVK, some emulator/post-processing shaders) can benefi
 Shipped two ways: the env-gated `vulkan.turnip.reassoc.so` (opt-in), and an
 AGGRESSIVE testing package `gpu/turnip-dist/GammaOS-Turnip-Adreno613-AGGRESSIVE-v1.adpkg.zip`
 with reassoc ON by default (GAMMA_NOFASTMATH opts out) for Winlator/emulator testing.
+
+## Aggressive driver verification (reassoc default-on) - stable + correct
+
+Verified the shipped aggressive package (`GammaOS-Turnip-Adreno613-AGGRESSIVE-v1.adpkg.zip`,
+`vulkan.turnip.aggressive.so`, reassoc ON by default) via bind-mount @1010:
+- compute a*b+c with NO env = 126.7 GFLOPS (reassoc default-on, matches stock 127.7)
+- GAMMA_NOFASTMATH opt-out = 52.3 (correctly reverts to strict IEEE)
+- gfx fragment = 72.1 (correct)
+- heavy 32768x8192 = 120.4 GFLOPS and COMPLETES (device survives, boot_completed=1) -
+  the reassoc collapse means the loop does ~4x less work, so this dispatch that used
+  to trip a DEVICE_LOST now finishes within the GPU timeout. A useful side effect for
+  reassociable compute, though not a general stability fix.
+The aggressive build is stable, correct, and turnkey (no env needed).
