@@ -99,6 +99,44 @@ characterized and exhausted; the only unexplored paths are (a) a hand-built
 android12-5.10 GKI ioremap module to poke the EPSS CPU LUT (needs the GKI kernel
 source / Module.symvers, currently unavailable), and (b) deep XBL/AOP DDR-training
 or GMU-RISC firmware reflashes (high risk, EDL-recovery).
+
+## Exhaustive GPU-OC avenue exploration (device-confirmed)
+
+Every accessible lever was tested against the forced-pin stress:
+
+1. Clock (in-place gpucc top entry): works, GPU clocks to 1040/1100.
+2. Stable ceiling: **hard wall at exactly 1010** - even +30 MHz (1040) resets the
+   SoC instantly under load. 1050/1100 likewise.
+3. Voltage corner (DTB `qcom,gpu-pwrlevel@0 { qcom,level }`): TURBO_L1 0x1a0 ->
+   TURBO_L3 0x1e0 -> SUPER_TURBO 0x1ff, with DTB freq matched to the module clock:
+   no effect, resets just as fast.
+4. GX rail: the GPU `vdd`/`vddcx` supplies are GDSCs (`gpu_cc_gx_gdsc` /
+   `gpu_cc_cx_gdsc`, power-domain switches), not voltage rails. The GX voltage is
+   GMU-owned via RPMh and is not readable/forcible from Linux; `qcom,level` is the
+   only input to the GMU's vote and it is maxed.
+5. ACD: disabled and unconfigured (`acd`=0, empty `acd/`/`lm/`, no
+   `qcom,gpu-acd-table`), can't enable at runtime, needs unavailable silicon
+   calibration.
+6. Fault path: the reset is a hard power collapse with no software fault logged
+   (captured via console-ramoops), consistent with the GMU refusing to power the
+   GX above 1010 rather than a recoverable GPU fault.
+
+Conclusion: the **GMU firmware hard-caps the GX at 1010**. `a662_gmu.bin` is ARM
+Thumb-2 GMU-processor code (block table `{addr,0,type=1,size}` -> code at GMU
+0x4000, unsigned). It embeds frequency constants 1000 MHz and 1040 MHz at GMU
+vaddr 0x4a64/0x4a6c (file 0xc80/0xc88). The ONLY remaining GPU-OC lever is to
+reverse the Thumb-2 DCVS/clamp logic around those constants and patch the cap,
+then redeploy the GMU blob (it lives in /vendor/firmware, so needs a vendor-image
+reflash or a firmware_class.path override) and retest. High effort, real brick
+risk if the GMU fails to init; the silicon is also a low bin (Adreno613v1) that
+may not run higher stably even if the cap is lifted. Parked pending an explicit
+go-ahead for the GMU-firmware RE.
+
+CPU: no accessible lever at all - no `/dev/mem` (CONFIG_DEVMEM off, even under
+permissive), no rpmh/opp/regmap/clk register debugfs, no cpufreq OPP above 2400,
+and building the ioremap EPSS module needs the GKI kernel source (network-blocked).
+MEM: no cpu-ddr devfreq node; DDR is RPMh/AOP-firmware managed with no runtime
+handle.
 | gpu in-place 1050 | 1050 | - | - | - | - | - | no (SoC reset under sustained load) |
 | gpu in-place 1100 | 1100 | - | - | - | - | - | no (SoC reset under sustained load) |
 
