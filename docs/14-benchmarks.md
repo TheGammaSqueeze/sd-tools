@@ -442,6 +442,32 @@ CPU-side/driver-overhead factors this microbench does not capture, but the GPU-s
 throughput clearly favors stock.) Revert to stock:
 `fastboot flash vendor /work/55g1/vendor_live.img`.
 
+### The graphics gap IS real (unlike compute) - fma() vs mul+add is identical here
+
+Applied the same expression-control test to the graphics path: built an `fma()`
+fragment variant (`scripts/bench/src/gfxbench_fma.frag`, binary `gfxbench_fma`)
+and compared it against the original `a*b + c` fragment shader on both drivers
+(1920x1080, 512 iters, GPU @1010, device-confirmed):
+
+| driver | fragment `a*b + c` | fragment `fma()` |
+|--------|--------------------|------------------|
+| stock Adreno | 76.8 | 77.4 |
+| self-built Turnip | 42.3 | 42.4 |
+
+Unlike compute, the mul+add-vs-fma() split makes **no difference** on the graphics
+path for either driver (each is flat within ~1%). Why: the compute gap came from a
+single-variable dependency chain where stock could take a contracted-mad fast path
+(2x); this fragment loop interleaves four variables (a,b,c,d) so that special path
+does not apply and both compilers lower it the same way. Result: the **~1.8x
+fragment-throughput gap (77 vs 42) is a genuine Turnip ir3 fragment-path deficit,
+not a benchmark artifact** - this is the real optimization target (the compute
+"2.45x" was mostly artifact; the graphics 1.8x is not). For the games/emulators
+this handheld actually runs (fragment-bound), stock's fragment path is ~1.8x
+ahead, which is the number that matters. Next: chase the ir3 fragment codegen
+(occupancy / precision / sync flags) or a real-title comparison (3DMark WLE
+stock-vs-Turnip). Artifacts: `gfxbench_fma.frag`/`_frag.spv`/`_frag_spv.h`/`.c`
+under scripts/bench/src.
+
 ## Turnip modified to run 3DMark Wild Life Extreme (Vulkan 1.1+ report)
 
 3DMark's Wild Life Extreme (and other 4K/next-gen titles) refused to run under
