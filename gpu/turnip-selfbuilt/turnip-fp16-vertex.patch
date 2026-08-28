@@ -1,0 +1,15 @@
+Stacks on turnip-force-fp16.patch. Adds an opt-in GAMMA_FP16_VERTEX env that
+extends the forced-fp16 demotion to VERTEX shaders (default OFF). Vertex fp16 is
+a modest ~+4% win on vertex-ALU-bound content but is NOT default-on in ULTRA
+because demoting gl_Position math to fp16 can cause geometry wobble / z-fighting
+on real content. Opt-in for vertex-bound titles known to tolerate it.
+
+--- a/src/freedreno/ir3/ir3_nir.c
++++ b/src/freedreno/ir3/ir3_nir.c
+@@ ir3_optimize_loop: fp16 stage gate
+    if (os_get_option("GAMMA_FP16") &&
+        (s->info.stage == MESA_SHADER_FRAGMENT ||
+-        (s->info.stage == MESA_SHADER_COMPUTE && os_get_option("GAMMA_FP16_COMPUTE"))))
++        (s->info.stage == MESA_SHADER_COMPUTE && os_get_option("GAMMA_FP16_COMPUTE")) ||
++        (s->info.stage == MESA_SHADER_VERTEX && os_get_option("GAMMA_FP16_VERTEX"))))
+       NIR_PASS(_, s, nir_lower_bit_size, gamma_fp16_bit_size_cb, NULL);

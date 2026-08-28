@@ -1356,3 +1356,25 @@ workload-dependent: it is a large win for transcendental/lighting-bound fragment
 work and a wash for arithmetic/matrix-bound work - it never regresses these, which
 is why ULTRA (fragment fp16 default-on) is safe as the baseline. gamebench2 added to
 the tree as a second fragment-bound characterization benchmark.
+
+## Vertex-shader fp16 (GAMMA_FP16_VERTEX): ~+4% but vertex-bound-only, opt-in
+
+The forced-fp16 path was fragment-only (plus opt-in compute). Extended it to VERTEX
+shaders behind a new opt-in env GAMMA_FP16_VERTEX (default OFF). To actually measure
+it, added a vertex-bound benchmark (vertbench) - all prior benches are fragment/
+compute-bound (a fullscreen triangle = 3 vertices), so they show ZERO vertex effect
+(confirmed: gamebench 14.0 == 14.0 with/without vertex fp16). vertbench draws millions
+of vertices with a heavy per-vertex transform loop into a 32x32 target so vertex ALU
+dominates. GPU pinned, bind-mount:
+- iters=64:  fp32 25.6 -> fp16 26.6 Mverts/s  (+3.9%)
+- iters=128: fp32 12.9 -> fp16 13.4 Mverts/s  (+3.6%)
+- iters=256: fp32  6.6 -> fp16  6.8 Mverts/s  (+3.0%)
+Consistent ~+3-4% on vertex-ALU-bound work (normalize/sin/cos on the SFU + fma chains
+halve to fp16). It is NOT baked into ULTRA default-on: demoting gl_Position math to
+fp16 risks geometry wobble / z-fighting / cracks on real content (position wants fp32),
+so it stays OPT-IN like GAMMA_FP16_COMPUTE - safe to enable for vertex-bound titles a
+user has verified render clean. On the RG 55G1's real fragment-bound titles (Wild Life,
+WLE - GPU 99% saturated on fragment) vertex is not the bottleneck, so default-on would
+add position risk for ~0 title FPS. Kept: source gate (turnip-fp16-vertex.patch) +
+vertbench in the tree as the vertex-bound characterization bench. Deployed driver
+unchanged (still ULTRA+LOD 16330528, renders correctly).
