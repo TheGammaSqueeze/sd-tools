@@ -851,3 +851,42 @@ pursuing.
 
 Additional cycle-saving knob A/B on Wild Life (noubwc proved this class exists):
 3d_load 636 (slightly worse) and noconcurrentresolves 650 - both neutral vs the 646-649 baseline. The GMEM load/store/resolve path is not a lever here either.
+
+## Concurrent binning + hiprio: neutral. Performance levers EXHAUSTED - final summary
+
+Tested the last two untested perf features on Wild Life (baseline 646-650):
+forcecb (force concurrent binning) = 650, nocb (disable it) = 648, hiprio
+(high-priority GPU context) = 648. All neutral - concurrent binning is already
+optimal/irrelevant here and context priority does nothing on a single-app bench.
+
+### Final performance summary (Turnip on Adreno 613, GPU @1010)
+
+Every accessible Turnip performance lever has now been explored. Result:
+
+| lever | outcome |
+|-------|---------|
+| **UBWC off** | **+7% real titles - the ONE decisive lever (baked default)** |
+| fragment double-threadsize | fp32 microbench 42->72, but real titles +1% (not ALU-bound) |
+| fp16/mediump | already vectorizes (2.27x, 86% of stock decoupled) - not a lever |
+| sysmem / gmem tiling | neutral (not tiling/bandwidth bound at the tile level) |
+| nolrz / nolrzfc | neutral |
+| forcebin / nobin | neutral |
+| forcecb / nocb (concurrent binning) | neutral |
+| hiprio | neutral |
+| 3d_load, noconcurrentresolves | neutral/worse |
+| CPU pinning (both clusters max) | neutral - NOT CPU-bound |
+| surgical UBWC (textures-on) | worse than full-off |
+| newer Mesa rebase | already bleeding-edge (26.3.0-devel main) |
+| GPU overclock | blocked - AOP hard cap at 1010 (bricks) |
+
+**Definitive result: the best Turnip (dw_noubwc = multiview + fragment
+double-threadsize + UBWC-off) reaches 93-96% of the stock Adreno blob in real
+titles** (Wild Life 649/700, Wild Life Extreme 167/174). The remaining 4-7% is
+diffuse driver-maturity (command-stream/state-management micro-efficiency the
+proprietary blob has accumulated), with no single addressable lever left short of
+deep multi-week ir3/Turnip upstream work whose real-world payoff is near zero given
+these titles are not ALU/tiling/bandwidth/CPU bound. This is the performance
+ceiling for Turnip on this GPU. Turnip's standing advantage over stock is not raw
+speed (stock wins by a few percent) but the modern Vulkan 1.3 feature/extension set
+that the frozen VK-1.1 stock blob cannot provide (enables DXVK/Winlator, newer
+emulators, Zink) - see the next section.
