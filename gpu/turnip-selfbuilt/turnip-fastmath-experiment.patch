@@ -1,0 +1,45 @@
+diff --git a/src/freedreno/ir3/ir3_nir.c b/src/freedreno/ir3/ir3_nir.c
+index a4e65821..1aa5f4a7 100644
+--- a/src/freedreno/ir3/ir3_nir.c
++++ b/src/freedreno/ir3/ir3_nir.c
+@@ -287,6 +287,30 @@ ir3_lower_bit_size(const nir_instr *instr, UNUSED void *data)
+       this_progress;                                                           \
+    })
+ 
++/* GammaOS optional unsafe fast-math (GAMMA_FASTMATH env, OFF by default): clear the
++ * signed-zero / inf / nan preserve bits on every float ALU op so nir_opt_algebraic
++ * fires its aggressive nsz/ninf/nnan simplifications (approximating the stock
++ * Qualcomm compiler's non-IEEE fast math). Correctness-affecting; opt-in only. */
++static bool
++gamma_force_fast_math(nir_shader *s)
++{
++   bool progress = false;
++   nir_foreach_function_impl(impl, s) {
++      nir_foreach_block(block, impl) {
++         nir_foreach_instr(instr, block) {
++            if (instr->type != nir_instr_type_alu)
++               continue;
++            nir_alu_instr *alu = nir_instr_as_alu(instr);
++            if (alu->fp_math_ctrl != nir_fp_fast_math) {
++               alu->fp_math_ctrl = nir_fp_fast_math;
++               progress = true;
++            }
++         }
++      }
++   }
++   return progress;
++}
++
+ bool
+ ir3_optimize_loop(struct ir3_compiler *compiler,
+                   struct ir3_optimize_options *options, nir_shader *s)
+@@ -295,6 +319,9 @@ ir3_optimize_loop(struct ir3_compiler *compiler,
+ 
+    bool progress;
+    bool did_progress = false;
++
++   if (os_get_option("GAMMA_FASTMATH"))
++      gamma_force_fast_math(s);
+    unsigned lower_flrp = (s->options->lower_flrp16 ? 16 : 0) |
+                          (s->options->lower_flrp32 ? 32 : 0) |
+                          (s->options->lower_flrp64 ? 64 : 0);

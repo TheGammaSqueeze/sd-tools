@@ -1114,3 +1114,32 @@ by default (a correctness regression, not worth it). This is why dw_noubwc lands
 93-96% of stock and no config lever moves it: the residual is compiler polish, and
 the GPU is already 99% saturated executing Turnip's (correct, slightly-less-optimal)
 instruction stream.
+
+## Unsafe fast-math build: ZERO gain (the gap is reassociation NIR lacks, not a flag)
+
+Following the deep dive, built a separate Turnip with an optional unsafe fast-math
+mode (GAMMA_FASTMATH env, OFF by default): a nir pass that clears the
+signed-zero/inf/nan preserve bits (`fp_math_ctrl = nir_fp_fast_math`) on every
+float ALU op before nir_opt_algebraic, so the aggressive nsz/ninf/nnan
+simplifications fire (approximating stock's non-IEEE math). Patch:
+`gpu/turnip-selfbuilt/turnip-fastmath-experiment.patch`, driver
+`vulkan.turnip.fastmath.so`. Measured (device-confirmed @1010):
+
+| test | strict (IEEE) | GAMMA_FASTMATH |
+|------|---------------|----------------|
+| compute a*b+c | 52.4 | 52.4 |
+| gfx fragment (microbench) | 72.9 | 72.9 |
+| 3DMark Wild Life (1440p) | 649 | 643 |
+| 3DMark Wild Life Extreme (4K) | 171 | 170 |
+
+**Unsafe fast-math gives no gain anywhere** (identical microbench, within-noise or
+marginally lower on the real titles). The ir3 disassembly confirms why: with
+GAMMA_FASTMATH the a*b+c compute loop STILL compiles to the same four `mad.f32`
+(4 cat3, 29/45 nops) - the chain does not collapse. NIR's fast-math flags only
+unlock trivial identities (x*0 -> 0, etc); they do NOT perform the aggressive
+algebraic REASSOCIATION/const-fold that collapses the constant-FMA chain to a*K+L,
+because NIR has no general float-reassociation pass (only matrix-mul). So stock's
+advantage is not a switch Turnip can flip - it is an optimization pass the mature
+Qualcomm compiler has and open-source ir3 does not. This definitively closes the
+"can we just enable unsafe math" question: no. The fast-math build is kept as a
+documented negative (patch + .so); dw_noubwc remains the shipped best.
