@@ -346,10 +346,45 @@ Extended the driver comparison (all via the reversible bind-mount, GPU @1010):
   only affects Vulkan apps (games/emulators), never the base UI. (Note: SF holds
   the driver open, so a bind-mount needs `umount -l` + SF restart to revert.)
 
-Verdict: **for raw performance the stock Adreno driver is optimal** and should stay
-the default; a Turnip swap regresses compute and adds DEVICE_LOST on heavy loads.
-Turnip's only value here is compatibility / newer Vulkan (1.4) for specific
-titles - a compatibility choice, not a performance one. Turnip is kept in the tree
+### CORRECTION: the "2.45x compute gap" is a benchmark artifact, not a Turnip deficit
+
+Re-examined the 52 vs 128 gap by controlling how the kernel's multiply-add is
+expressed. The original gpubench shader uses the expression `a = a*b + c` (a
+separate multiply and add that a compiler MAY contract into one `mad`). Built a
+second shader (`gpubench_fma`, source `scripts/bench/src/gpubench_fma.comp`) that
+uses the canonical `a = fma(a,b,c)` intrinsic instead, and ran both shaders on
+both drivers (GPU @1010, 8192x2048x5, device-confirmed):
+
+| driver | `a*b + c` expression | `fma()` intrinsic |
+|--------|----------------------|-------------------|
+| stock Adreno | **126.4** | **53.7** |
+| self-built Turnip | 52.0 | 52.1 |
+
+Two facts fall out:
+- On the **canonical `fma()` kernel the two drivers are within ~3%** (53.7 vs
+  52.1). Turnip is **not** 2.45x slower at compute in a fair comparison - on true
+  fused-multiply-add throughput it essentially matches the stock blob.
+- Stock only reaches 126 on the `a*b + c` form: its compiler takes a fast
+  contracted-`mad` path there that hits ~2x the rate of an explicit `fma()`, while
+  Turnip's ir3 lowers both forms to the same ~52 code. So the headline gap was the
+  stock compiler exploiting one specific expression pattern, not a general Turnip
+  weakness. (The reproducible `fma()`-vs-`a*b+c` split is the honest measurement;
+  the earlier "2.45x regression" over-stated it by using only the one form stock
+  optimizes hardest.)
+
+This is a real, narrow ir3 codegen opportunity (contract `fmul`+`fadd` -> `mad`
+and match stock's dual-issue scheduling on the contracted form), not a 2.45x
+platform deficit. Net corrected verdict: **stock still leads on this ALU
+microbenchmark, but Turnip is a genuinely close (within ~3% on fair FMA), viable
+driver for compute**, with its remaining advantage being newer Vulkan +
+open-source compatibility. Bench artifacts committed: `gpubench_fma.comp` /
+`.spv` / `_spv.h` / `gpubench_fma.c` under scripts/bench/src.
+
+Verdict (raw peak): the stock Adreno driver still posts the highest single number
+on this microbench via its contracted-mad path, so it stays the default; but the
+gap is expression-specific, not a blanket 2.45x, and Turnip matches stock on
+canonical FMA. Turnip's standing value is compatibility / newer Vulkan (1.4) for
+specific titles. Turnip is kept in the tree
 (gpu/turnip-selfbuilt) and can be deployed system-wide via
 scripts/swap_vulkan_turnip.sh (bakes it into the vendor image at
 /vendor/lib64/hw/vulkan.adreno.so) if a specific app needs it; stock is preserved
