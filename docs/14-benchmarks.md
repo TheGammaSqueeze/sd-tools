@@ -284,3 +284,27 @@ collapse with no software fault. Confirming/lifting this needs reversing and
 editing the GX voltage table inside aop.mbn (deep, re-sign with the vendored
 SecTools test keys, EDL-recovery risk) - the deepest lever, parked for explicit
 go-ahead. No non-destructive lever remains that raises GPU voltage above stock.
+
+### ROOT CAUSE (definitive): the AOP power tables cap every rail at TURBO_L1
+
+Reversed the AOP cmd-db / RPMh ARC tables inside the `aop_a` partition (the GX
+corner voltages live here, not in the GMU or DTB). Every ARC rail's supported-
+corner array is: `00 10 40 80 c0 100 140 180 1a0 00` (OFF, RETENTION, LOW_SVS,
+SVS, SVS_L1, NOM, NOM_L1, TURBO, **TURBO_L1**, zero-terminated). NO rail - gfx
+included - defines any corner above TURBO_L1 (0x1a0). That is the exact clamp: the
+DTB votes of TURBO_L3 (0x1e0) / SUPER_TURBO (0x1ff) had zero effect because those
+corners do not exist in the platform's tables, so RPMh clamped them to 0x1a0. The
+GPU is stable at its maximum frequency (1010) for the maximum GX voltage the
+platform defines (TURBO_L1), and every OC above that runs undervolted -> hard SoC
+brownout, exactly as observed.
+
+Because NOT A SINGLE rail on this PMIC (pm6450) uses a corner above TURBO_L1, the
+PM6450 SMPS almost certainly has no higher GX voltage programmed either - so
+adding a corner to the gfx array in the AOP would not deliver more volts; it would
+just be a hard-brick-risk AOP re-sign + flash (AOP is pre-fastboot; recovery = EDL)
+for a gain the hardware/platform is not built to supply. This is a firmware/PMIC
+platform limit, not merely a low silicon bin. **Conclusion: GPU OC beyond 1010 is
+not achievable on this device without a PMIC-level voltage-table change (deeper
+than AOP, and physically bounded by the SMPS), which is beyond a safe software
+mod.** The GPU-OC investigation is complete: the exact mechanism is identified and
+the wall is a hard platform power limit.
