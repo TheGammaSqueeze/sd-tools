@@ -1023,3 +1023,30 @@ the residual 4-7% would require deep upstream ir3 command-stream work with near-
 real-world payoff (the GPU is already saturated on cycles the blob just emits
 slightly more efficiently). RE tooling is committed for any future kernel that
 exposes working perfcounters.
+
+## "Try everything" pass: memory-bus / SLC / newer-blob levers (all dead ends)
+
+Re-examined the whole board aggressively for anything missed. Found and closed a
+real gap in the earlier pinning (I had pinned the GPU CORE clock but never the
+memory bus / caches), plus tested an alternate Qualcomm blob:
+
+- **GPU memory-bus pin.** kgsl-busmon (gpubw_mon governor) drives the DDR bandwidth
+  vote and idles at freq 0 - it is NOT pinned by the core-clock pin. Floored its
+  min_freq to max (1010000000) + `force_bus_on=1`. Wild Life = 650, NEUTRAL: the
+  gpubw_mon governor already votes max bandwidth under a heavy frame, so the GPU was
+  never bus-starved. (Restored to default afterward.)
+- **System Level Cache (SLC/LLC) slices.** gpu_llc_slice_enable / gpuhtw_llc_slice
+  are 0 and writing 1 does not stick - the low-tier SG4250P/SM4450 does not
+  provision an SLC slice for the GPU (no premium-tier system cache), so there is no
+  GPU-LLC lever here. l3_vote likewise rejects writes.
+- **Newer Qualcomm Adreno blob.** A larger 5.13MB vulkan.adreno.so (from the
+  rpclassic/classiicdriver tree) advertises Vulkan 1.2 (VkPhysicalDeviceVulkan12
+  Properties) - newer than the 55g1 stock 4.04MB VK-1.1 blob. Bind-mounted it on the
+  Adreno 613: it SEGFAULTS (built for a different Adreno "A666" + mismatched KMD).
+  Qualcomm UMD blobs are tightly coupled to their GPU gen + kernel, so no newer QC
+  blob is usable here. This reinforces Turnip's value: it delivers VK 1.3 on this
+  GPU where the ONLY compatible Qualcomm driver is frozen at VK 1.1.
+
+GPU core OC remains a true hard wall (voltage-capped by the AOP power tables at
+1010; +30 MHz resets the SoC under load - proven earlier; AOP is off-limits/bricks).
+Net: no new lever. dw_noubwc (93-96% of stock + VK 1.3) stands as the ceiling.
