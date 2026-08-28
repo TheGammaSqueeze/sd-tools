@@ -384,3 +384,25 @@ AOP-OC hard SoC reset. Real games never approach 32768x8192-scale single dispatc
 so Turnip is stable for actual use, with safe per-app GPU recovery on overload.
 Net: Turnip is a safe compatibility daily driver; the only measured cost is raw FMA
 compute throughput (~52 vs ~128), which does not represent game/emulator graphics.
+
+## Graphics-path benchmark (gfxbench) - stock beats Turnip on graphics too
+
+Built a Vulkan GRAPHICS microbenchmark (scripts/bench/src/gfxbench.c) - renders a
+fullscreen triangle to an offscreen target, fragment shader does an FMA loop per
+pixel, so it exercises the real graphics path (vertex assembly, rasterization,
+fragment shading), unlike the pure-compute gpubench. Device-confirmed @1010:
+
+| driver | fragment GFLOPS (1920x1080) | vs stock |
+|--------|-----------------------------|----------|
+| stock Adreno | **~77** | baseline |
+| self-built Turnip | **~42** | 0.55x (1.8x slower) |
+
+So stock Adreno beats Turnip on the GRAPHICS path too (1.8x), narrower than the
+compute gap (2.45x) but the same direction. Combined verdict: **stock Adreno is
+the faster driver on BOTH compute and graphics for this GPU** - Turnip is slower
+across the board for raw throughput. Turnip's only advantage is compatibility /
+newer Vulkan (1.4) for titles the stock 1.1 driver cannot run. For raw
+performance, stock is optimal; Turnip is a compatibility choice. (Real games add
+CPU-side/driver-overhead factors this microbench does not capture, but the GPU-side
+throughput clearly favors stock.) Revert to stock:
+`fastboot flash vendor /work/55g1/vendor_live.img`.
