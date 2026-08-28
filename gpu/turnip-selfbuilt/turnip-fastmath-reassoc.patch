@@ -1,0 +1,47 @@
+diff --git a/src/compiler/nir/nir_opt_algebraic.py b/src/compiler/nir/nir_opt_algebraic.py
+index 1f128e04..40ca6d41 100644
+--- a/src/compiler/nir/nir_opt_algebraic.py
++++ b/src/compiler/nir/nir_opt_algebraic.py
+@@ -245,6 +245,14 @@ optimizations += [
+    (('usadd_4x8_vc4', a, ~0), ~0),
+    (('~fadd', ('fmul', a, b), ('fmul', a, c)), ('fmul', a, ('fadd', b, c))),
+    (('~fadd', ('fmulz', a, b), ('fmulz', a, c)), ('fmulz', a, ('fadd', b, c))),
++   # GammaOS unsafe distributive reassociation of constant-coefficient chains
++   # (gamma_reassoc, fast-math). Collapses e.g. (a*C1+C2)*C3+C4 -> a*(C1*C3)+(C2*C3+C4)
++   # so a chain of constant-coefficient FMAs folds to a single FMA - what the stock
++   # Adreno compiler does. Constant subexprs const-fold afterwards.
++   (('~ffma', ('ffma', a, '#b', '#c'), '#d', '#e'), ('ffma', a, ('fmul', b, d), ('ffma', c, d, e)), 'options->gamma_reassoc'),
++   (('~ffma', ('fmul', a, '#b'), '#d', '#e'), ('ffma', a, ('fmul', b, d), e), 'options->gamma_reassoc'),
++   (('~fadd', ('fmul', ('fadd', ('fmul', a, '#b'), '#c'), '#d'), '#e'), ('fadd', ('fmul', a, ('fmul', b, d)), ('fadd', ('fmul', c, d), e)), 'options->gamma_reassoc'),
++   (('~fmul', ('fadd', ('fmul', a, '#b'), '#c'), '#d'), ('fadd', ('fmul', a, ('fmul', b, d)), ('fmul', c, d)), 'options->gamma_reassoc'),
+    (('iadd', ('imul', a, b), ('imul', a, c)), ('imul', a, ('iadd', b, c))),
+    (('iadd', ('ishl', b, a), ('ishl', c, a)), ('ishl', ('iadd', b, c), a)),
+    (('iand', ('iand', a, b), ('iand(is_used_once)', a, c)), ('iand', ('iand', a, b), c)),
+diff --git a/src/compiler/nir/nir_shader_compiler_options.h b/src/compiler/nir/nir_shader_compiler_options.h
+index 46d1f3b6..b94f7a17 100644
+--- a/src/compiler/nir/nir_shader_compiler_options.h
++++ b/src/compiler/nir/nir_shader_compiler_options.h
+@@ -693,6 +693,10 @@ typedef struct nir_shader_compiler_options {
+    /** Backend supports fmulz (and fmadz if has_fmad) */
+    bool has_fmulz;
+ 
++   /** GammaOS: enable unsafe distributive reassociation of constant-coefficient
++    * FMA chains (fast-math). Off by default; set from the GAMMA_FASTMATH env. */
++   bool gamma_reassoc;
++
+    /**
+     * Backend supports fmulz (and fmadz if has_fmad) but only if
+     * FLOAT_CONTROLS_DENORM_PRESERVE_FP32 is not set
+diff --git a/src/freedreno/ir3/ir3_compiler.c b/src/freedreno/ir3/ir3_compiler.c
+index aed282ca..e4d1aeff 100644
+--- a/src/freedreno/ir3/ir3_compiler.c
++++ b/src/freedreno/ir3/ir3_compiler.c
+@@ -390,6 +390,8 @@ ir3_compiler_create(struct fd_device *dev, const struct fd_dev_id *dev_id,
+    /* Set up nir shader compiler options, using device-specific overrides of our base settings. */
+    compiler->nir_options = ir3_base_options;
+    compiler->nir_options.has_iadd3 = dev_info->props.has_sad;
++   /* GammaOS: opt-in unsafe constant-coefficient FMA-chain reassociation. */
++   compiler->nir_options.gamma_reassoc = os_get_option("GAMMA_FASTMATH") != NULL;
+ 
+    if (compiler->gen >= 6) {
+       compiler->nir_options.force_indirect_unrolling = nir_var_all,

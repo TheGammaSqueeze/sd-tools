@@ -1167,3 +1167,37 @@ nops and cannot remove them either (physics). So the real-title gap is NOT exces
 nops - it is instruction count / register allocation (occupancy) / the unsafe
 reassociation stock does, not delay-slot scheduling. Patch kept as a documented
 INCORRECT experiment (`turnip-aludelay2-experiment-INCORRECT.patch`); reverted.
+
+## BREAKTHROUGH: constant-FMA reassociation closes the compute gap (stock parity)
+
+The deep dive proved stock's compute advantage is aggressive algebraic
+REASSOCIATION that collapses constant-coefficient FMA chains to a single FMA, which
+NIR/ir3 does not do. Implemented it: added distributive-reassociation patterns to
+`nir_opt_algebraic` (gated on a new `gamma_reassoc` compiler option) that fold
+`(a*C1+C2)*C3+C4 -> a*(C1*C3) + (C2*C3+C4)` for constant C1..C4, so a chain of
+constant-coefficient FMAs collapses. Enabled via the GAMMA_FASTMATH env (opt-in;
+default stays IEEE-correct). Patch: `gpu/turnip-selfbuilt/turnip-fastmath-reassoc.patch`,
+driver `vulkan.turnip.reassoc.so`. Device-confirmed @1010 (bind-mount):
+
+| workload | Turnip default | Turnip + reassoc | stock |
+|----------|----------------|------------------|-------|
+| compute a*b+c chain | 52.0 | **127.2** | 127.7 |
+| compute explicit fma() chain | 52.2 | **125.7** | ~127 |
+| gfx fragment (microbench) | 71.7 | 72.1 | 77 |
+| compute decoupled (no chain) | 35.4 | 35.4 | ~45 |
+
+**The reassociation closes the compute gap completely - 52 -> 127, matching the
+stock blob (127.7).** It fires only on collapsible constant-coefficient chains
+(2.4x there), and is neutral on the graphics microbench and decoupled compute
+(nothing to collapse), exactly as the deep dive predicted. Crucially, unlike the
+delay-slot experiment it renders CORRECTLY: 3DMark Wild Life Extreme with reassoc
+produced a clean frame (see the render) and scored 174 (vs 170 off; at/above the
+dw_noubwc 167-170 and equal to stock 174 - a real render, not corruption).
+
+So the long-standing "2.45x compute regression" is now CLOSED at the source: with
+GAMMA_FASTMATH, Turnip matches stock on compute. Real-title graphics is
+neutral-to-marginal (games rarely have long constant-coefficient chains), but
+compute-heavy workloads (DXVK, some emulator/post-processing shaders) can benefit.
+Shipped two ways: the env-gated `vulkan.turnip.reassoc.so` (opt-in), and an
+AGGRESSIVE testing package `gpu/turnip-dist/GammaOS-Turnip-Adreno613-AGGRESSIVE-v1.adpkg.zip`
+with reassoc ON by default (GAMMA_NOFASTMATH opts out) for Winlator/emulator testing.
