@@ -959,3 +959,35 @@ even with UBWC off (they are orthogonal: one is wave-size, the other is image
 compression), and compute is unchanged. So the shipped dw_noubwc driver
 (multiview + fragment-double-threadsize + UBWC-off) is minimal and every change is
 justified. Performance deliverable complete.
+
+## Reverse-engineering path: KGSL GPU-snapshot RE pipeline (infrastructure built)
+
+Per the directive to find optimizations even via RE, opened up the GPU at the
+register/command-stream level to compare what stock programs vs Turnip. Findings:
+
+- The **KGSL perfcounter debugfs interface** exists (/sys/kernel/debug/kgsl/
+  kgsl-3d0/profiling: blocks/assignments/enable/pipe) with all a6xx blocks
+  enumerated (cp, sp[24 ctrs], tp, uche, rb, vsc, ccu, lrz, pc, vfd, vpc, hlsq...).
+  Countable IDs come from Mesa's a6xx_perfcntrs.xml (e.g. SP_BUSY_CYCLES). BUT on
+  this kernel the per-submission value readback (pipe/assignments) does not capture
+  our shell-launched submissions - the adreno_profile wrapping path yields no data.
+- The **KGSL GPU snapshot** works: a GPU fault (heavy gpubench 32768x8192
+  DEVICE_LOST) captures ~1.2MB of GPU state to /sys/class/kgsl/kgsl-3d0/snapshot/
+  dump (consumed-on-read; must `cat dump > file` in a single read). It is the
+  KGSL-internal binary format (0xABCD section magic), NOT the mesa-crashdec /
+  devcoredump text format (KGSL does not route through devcoredump here), so mesa
+  crashdec cannot read it directly.
+- Built the mesa **crashdec** host tool (build-host) and wrote a **KGSL snapshot
+  section parser** (gpu/re/kgsl_snapshot_parse.py) that correctly walks the section
+  table: OS, REGS x9, INDEXED_REGS, SHADER, GPU_OBJECT x43, DEBUGBUS, etc. A real
+  Turnip snapshot is saved at gpu/re/snapshot_turnip_dwnoubwc.bin. The REGS-section
+  value decode still needs one refinement (the per-section sub-header alignment) to
+  emit correct (mmio_offset, value) pairs.
+
+Status: RE infrastructure is in place (capture + section-walk). Next step is to
+finish the REGS decode, capture a matching STOCK snapshot (flash stock, fault,
+capture), and diff the config registers (GRAS/RB_BIN_CONTROL bin size, RB_CCU_CNTL,
+UBWC control, LRZ) to see if stock programs anything Turnip does not - the same
+class of config lever that made UBWC-off a +7% win. This is a multi-tick effort with
+uncertain payoff (may confirm a compiler/command-stream gap rather than a config
+one), but it is the concrete RE path to any remaining lever.
