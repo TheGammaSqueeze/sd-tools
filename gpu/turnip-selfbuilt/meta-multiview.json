@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "name": "Turnip Adreno 613 multiview-forced (RG 55G1, Android 12 / API 31)",
+  "description": "Mesa Turnip (Mesa 26.3.0-devel) with tu_has_multiview() forced true so the Adreno 613 always advertises Vulkan 1.1+ (reports 1.3.359). Fixes 3DMark Wild Life Extreme and other titles that reject the GPU when apiVersion is 1.0. Multiview is functionally emulated via geometry shaders on a6xx; safe on hardware that lacks native multiview (has_hw_multiview=false).",
+  "author": "TheGammaSqueeze",
+  "packageVersion": "1",
+  "vendor": "Mesa",
+  "driverVersion": "Vulkan 1.3 (Mesa 26.3.0-devel)",
+  "minApi": 31,
+  "libraryName": "vulkan.turnip.multiview.so",
+  "sourceChange": "src/freedreno/vulkan/tu_device.cc: tu_has_multiview() returns true unconditionally",
+  "verified": "RG 55G1 (a28c0e0e): vkdump apiVersion=1.3.359 multiViewport=1; baked into /vendor/lib64/hw/vulkan.adreno.so; 3DMark Wild Life Extreme accepted the GPU and completed (score 156, 0.94 FPS at 3840x2160)"
+}

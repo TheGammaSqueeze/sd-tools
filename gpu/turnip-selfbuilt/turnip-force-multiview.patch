@@ -1,0 +1,17 @@
+diff --git a/src/freedreno/vulkan/tu_device.cc b/src/freedreno/vulkan/tu_device.cc
+index 9b751eaa..ee5d6300 100644
+--- a/src/freedreno/vulkan/tu_device.cc
++++ b/src/freedreno/vulkan/tu_device.cc
+@@ -196,7 +196,11 @@ is_kgsl(struct tu_instance *instance)
+ 
+ static bool tu_has_multiview(const struct tu_physical_device *device)
+ {
+-   return device->info->props.has_hw_multiview || TU_DEBUG(NOCONFORM);
++   /* GammaOS: force multiview (emulated via geometry shaders on a6xx) so we
++    * always advertise Vulkan 1.1+. 3DMark Wild Life Extreme and other titles
++    * reject the GPU when apiVersion reports 1.0. Multiview is functionally
++    * emulated, so this is safe on Adreno 613 (has_hw_multiview=false). */
++   return true;
+ }
+ 
+ /* We are generally VK 1.1 except A702, which has no multiview */

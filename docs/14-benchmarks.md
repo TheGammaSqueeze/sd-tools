@@ -406,3 +406,40 @@ performance, stock is optimal; Turnip is a compatibility choice. (Real games add
 CPU-side/driver-overhead factors this microbench does not capture, but the GPU-side
 throughput clearly favors stock.) Revert to stock:
 `fastboot flash vendor /work/55g1/vendor_live.img`.
+
+## Turnip modified to run 3DMark Wild Life Extreme (Vulkan 1.1+ report)
+
+3DMark's Wild Life Extreme (and other 4K/next-gen titles) refused to run under
+Turnip with "no compatible GPU". Root cause: the vanilla Turnip on the Adreno 613
+advertises **apiVersion 1.0.359**, but WLE requires **Vulkan 1.1**. The version is
+gated in `src/freedreno/vulkan/tu_device.cc` by `tu_has_multiview()`:
+
+```c
+props->apiVersion = tu_has_multiview(pdevice) ? ... 1.3/1.4 ... : VK_MAKE_VERSION(1,0,...);
+```
+
+`tu_has_multiview()` returns `device->info->props.has_hw_multiview || TU_DEBUG(NOCONFORM)`,
+and the Adreno 613 has `has_hw_multiview=false`, so Turnip drops to VK 1.0.
+Multiview is otherwise fully emulated on a6xx via geometry shaders (Turnip sets
+`multiview=true`/`multiviewGeometryShader`), so the 1.0 cap is a conformance-badge
+decision, not a functional limit - proven by `TU_DEBUG=noconform` bumping the
+report to 1.3.359 with `multiViewport=1`.
+
+**Fix:** patched `tu_has_multiview()` to return `true` unconditionally (bakes the
+NOCONFORM behavior in, no env var needed), rebuilt Turnip, and swapped it into the
+vendor Vulkan HAL. Verified device-side with `scripts/bench/src/vkdump`:
+
+| driver | apiVersion | multiViewport |
+|--------|-----------|---------------|
+| stock Turnip | 1.0.359 | 0 |
+| modified Turnip (multiview forced) | **1.3.359** | **1** |
+
+Deployed by debugfs-swapping `/vendor/lib64/hw/vulkan.adreno.so` in the vendor
+image (`/work/55g1/vendor_turnip_mv.img`, e2fsck-clean, selinux
+`same_process_hal_file:s0` + 0644 preserved) and flashing via fastbootd.
+End-to-end result: **3DMark Wild Life Extreme accepted the GPU and completed** -
+Overall score **156**, avg **0.94 FPS** at 3840x2160 (low as expected: WLE is a 4K
+next-gen test and Turnip is ~1.8x slower than stock on graphics; the point is the
+compatibility rejection is gone). Driver + meta saved at
+`gpu/turnip-selfbuilt/vulkan.turnip.multiview.so` + `meta-multiview.json`. Revert
+to stock Vulkan: `fastboot flash vendor /work/55g1/vendor_live.img`.
