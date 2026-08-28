@@ -132,12 +132,21 @@ resets the OC levels, so the instability is real, not a test artifact (all
 self-recover on reboot because the in-place module still probes cleanly). Raising
 the GPU top pwrlevel's RPMh corner from TURBO_L1 (0x1a0) to TURBO_L3 (0x1e0) in
 the DTB gave the OC more GX voltage but did NOT help 1100 — it reset just as fast.
-That rules out simple GX rail voltage as the limiter and points at the **GMU ACD**
-(the GMU firmware does closed-loop adaptive clock distribution with per-OPP
-calibration; frequencies above the stock 1010 have no ACD data). A stable GPU OC
-therefore needs `a650_gmu.bin` ACD-table work, not just the clock table or an
-RPMh corner bump. **Stable GPU ceiling on this unit: 1010.** The DTB voltage-corner
-lever is `qcom,gpu-pwrlevel@0 { qcom,level }` (0x1a0=TURBO_L1 .. 0x1e0=TURBO_L3).
+That rules out simple GX rail voltage as the limiter. Investigating further:
+ACD (Adaptive Clock Distribution, the mechanism that lets Adreno hold higher
+clocks by compensating voltage droop) is **entirely disabled and unconfigured**
+on this unit: `/sys/class/kgsl/kgsl-3d0/acd` reads 0 and won't flip at runtime,
+the `acd/` and `lm/` sysfs dirs are empty, and there is no `qcom,gpu-acd-table`
+in the DTB. Enabling it properly would need silicon-specific ACD calibration
+coefficients (from fuses/characterization) that aren't available, and this part
+is a low bin (`qcom,gpu-model = "Adreno613v1"`, GPU firmware A662/gen6_3_26_0,
+`a662_gmu.bin`). The GMU `.bin` is GMU processor code; the freq/DCVS tables are
+sent at runtime via HFI from the DTB pwrlevels (which we already control), so
+there is no freq gate to patch in the blob. Net: the two accessible firmware
+levers (RPMh voltage corner, ACD enable) are exhausted, and **the stable GPU
+ceiling on this unit is 1010** on static margin. The DTB voltage-corner lever is
+`qcom,gpu-pwrlevel@0 { qcom,level }` (0x1a0=TURBO_L1 .. 0x1e0=TURBO_L3 .. 0x1ff
+SUPER_TURBO) if revisiting later with ACD calibration data.
 
 ### Deployment (bypassing verity for the modified vendor_dlkm)
 
