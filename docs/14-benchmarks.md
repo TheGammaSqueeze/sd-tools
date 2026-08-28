@@ -308,3 +308,24 @@ not achievable on this device without a PMIC-level voltage-table change (deeper
 than AOP, and physically bounded by the SMPS), which is beyond a safe software
 mod.** The GPU-OC investigation is complete: the exact mechanism is identified and
 the wall is a hard platform power limit.
+
+## GPU driver: Turnip vs stock Adreno (measured) - Turnip is a regression here
+
+Runtime bind-mount test (no flashing): `mount --bind vulkan.turnip.so over
+/vendor/lib64/hw/vulkan.adreno.so`, then run gpubench in a fresh process so it
+loads Turnip while the live UI stays on Adreno. Device-confirmed on a28c0e0e,
+GPU pinned to 1010 MHz, same FMA compute workload (8192 groups x 2048 iters):
+
+| Vulkan driver | reported device / api | GFLOPS @1010 | heavy dispatch (32768x8192) |
+|---------------|-----------------------|--------------|------------------------------|
+| stock Adreno (vulkan.adreno.so) | "Adreno (TM) A12" / 1.1.128 | **127.7** | stable |
+| self-built Turnip (Mesa 26.3.0, a702) | "Turnip Adreno (TM) 613" / 1.0.359 | **52.1** | **VK_ERROR_DEVICE_LOST** |
+
+Turnip correctly detects the real silicon (Adreno 613) and runs, but delivers
+**2.45x LESS compute throughput at the same clock**, and it loses the device on
+the large dispatches the stock driver handles fine. So a system-wide Turnip swap
+(scripts/swap_vulkan_turnip.sh) would REGRESS GPU compute and add instability -
+not recommended for performance on this unit. Turnip's value here would be
+compatibility/features/newer-Vulkan (1.4) for specific apps, not raw throughput.
+The bind-mount is fully reversible (umount); stock preserved at
+gpu/stock-qualcomm/vulkan.adreno.so.
