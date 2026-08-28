@@ -1247,3 +1247,19 @@ into vec2/half2 for ~2x rate while Turnip emits scalar mad.f16. Fixing ir3 fp16
 packing would lift declared-mediump shaders AND force-fp16 toward 126 (1.75x its
 fp32). These are the next cron-tick targets. Fragment-bound bench (gfxbench +
 gfxbench_mp) kept in-tree so these wins are measurable.
+
+## Force-fp16 (demote fp32 frag ALU to 16-bit) - NEGATIVE (ir3 promotes fp16 back)
+
+Implemented a force-fp16 pass (GAMMA_FP16 env, off by default): nir_lower_bit_size
+with a callback that demotes 32-bit float fragment ALU to 16-bit (derivatives are
+intrinsics so untouched). Measured on the fragment-bound gfxbench (fp32 source shader):
+- default 72.9 -> GAMMA_FP16 **60.0 (SLOWER)**.
+Disasm: the shader gains `6 cov` (conversion) ops and still shows `0 half, 2 full`
+regs - ir3's backend PROMOTES the 16-bit ALU back to full (fp32) registers, so the
+half-rate benefit never materializes and the added f2f16/f2f32 boundary conversions
+just cost extra. This is the same root issue as declared-mediump (84.9 vs stock's
+126): **ir3 does not keep fragment fp16 in half registers on this workload**, it
+up-converts to fp32. So neither declared-mediump nor forced-fp16 unlocks the a6xx
+2x fp16 path in Turnip - the blocker is ir3 backend register promotion, not the NIR
+front end. Kept as an env-gated experiment (turnip-force-fp16-experiment.patch);
+the real fix is in ir3 RA/scheduling (keep half regs + vec2-pack), the next target.
