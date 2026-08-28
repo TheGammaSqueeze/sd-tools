@@ -573,3 +573,52 @@ beyond a driver rebuild.** Bench artifacts: `gfxbench_mp.frag` (mediump) and
 `gfxbench_f16.frag` (explicit fp16), plus `.spv`/`_frag_spv.h`/`.c`/binaries, under
 scripts/bench/src. Conclusion for the GOAL stands: stock is the highest-performing
 driver on this GPU; Turnip is a within-~12%-on-real-games compatibility option.
+
+## Parity push: ir3 shader-stat diagnosis (new objective - close the gap with stock)
+
+New objective: drive Turnip toward stock parity, then beyond via Turnip features.
+Enabled ir3 shader disassembly on the self-build to introspect why the fragment
+path trails. Turnip routes disasm to Android logcat (not stderr); capture with
+`IR3_SHADER_DEBUG=disasm MESA_SHADER_CACHE_DISABLE=1 <bench>` then
+`logcat -d | grep 'FRAG prog'`. Stats for the fp32 gfxbench fragment shader on
+Adreno 613:
+
+- `33 instr, 14 nops, 19 non-nops` - **~42% of the issued slots are nops**
+- `0 half, 2 full` regs, `4 constlen`
+- `16 max_waves` (this is the max - occupancy is NOT the limiter)
+- `0 double_threadsize`, `1 loops`, `0 (ss)/0 (sy)` sync stalls
+
+So the fragment shader is a **latency-bound dependency chain at full occupancy**:
+ir3 fills the mad-to-mad latency with nops, and stock evidently hides that latency
+better (77 vs 42).
+
+Two experiments this tick, both instructive:
+
+1. **FP16 is NOT actually being emitted by Turnip - earlier test was invalid.**
+   Re-checked with disasm: the mediump shader AND the explicit `float16_t` shader
+   BOTH compile to `0 half, 2 full` (all fp32, with 6 `cov` conversions). The
+   explicit-fp16 case promotes to fp32 because the benchmark never enabled the
+   `shaderFloat16` device feature. Built `gfxbench_f16feat` (enables
+   `VkPhysicalDeviceShaderFloat16Int8Features.shaderFloat16` + the
+   `VK_KHR_shader_float16_int8` extension) - and Turnip STILL emits `0 half` and
+   stays 42.3 (stock 123). So the precise root cause is: **Turnip's ir3 refuses to
+   keep this fragment ALU chain in 16-bit even when the shader explicitly demands
+   float16_t with the feature enabled** - it converts to fp32, does the math in
+   fp32, converts back. (This corrects the earlier a1c4026 wording that implied the
+   HW/driver simply saw no fp16 benefit; in fact Turnip never ran fp16 here.)
+
+2. **Forcing double-threadsize did not help (negative result).** The heuristic in
+   `ir3_should_double_threadsize` (ir3.c) gives non-fp16 fragment shaders only
+   `regs*2 <= reg_size_vec4/4` headroom vs `reg_size_vec4` for fp16. Patched the
+   fp32 branch to the generous limit and rebuilt: the FRAG shader STILL reports
+   `0 double_threadsize` and throughput was unchanged (42.3 -> 42.8, noise). So the
+   single-wave mode is gated further down in RA, and wider fragment waves are not
+   the lever for this gap. Reverted the change (no benefit, avoid shipping a no-op
+   that could regress other shaders).
+
+Net this tick: the fp32 fragment gap is a latency-hiding/scheduling difference deep
+in ir3, and the fp16 gap is ir3 declining to emit half-precision for this pattern -
+both are genuine upstream-compiler problems, not build flags or simple heuristics.
+Real-world (WLE) Turnip is already ~88% of stock; raw synthetic-ALU parity is a
+deep ir3 effort. Iteration continues. New bench tool: `gfxbench_f16feat.c` (fp16
+device-feature-enabled graphics microbench).
