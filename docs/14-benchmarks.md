@@ -1050,3 +1050,67 @@ memory bus / caches), plus tested an alternate Qualcomm blob:
 GPU core OC remains a true hard wall (voltage-capped by the AOP power tables at
 1010; +30 MHz resets the SoC under load - proven earlier; AOP is off-limits/bricks).
 Net: no new lever. dw_noubwc (93-96% of stock + VK 1.3) stands as the ceiling.
+
+## DEEP DIVE: exactly why Turnip cannot reach stock speeds
+
+Controlled root-cause investigation using identical fixed-SPIR-V microbenchmarks
+(both drivers compile the SAME shader, isolating driver/compiler from app effects),
+plus ir3 disassembly. Device-confirmed @1010.
+
+### The measurements (identical shaders, both drivers)
+| workload (identical SPIR-V) | Turnip | stock | stock/Turnip |
+|-----------------------------|--------|-------|--------------|
+| compute, explicit `fma(a,b,c)` | 52.1 | 53.4 | **1.02x (equal)** |
+| compute, `a*b + c` expression | 51.8 | 125.4 | **2.42x** |
+| compute, decoupled (8 indep. accumulators) | ~71 | ~91 | 1.28x |
+| graphics fragment (fixed shader) | 71.5 | 77.2 | 1.08x |
+| real title 3DMark Wild Life | 649 | 700 | 1.08x |
+| real title Wild Life Extreme (4K) | 167 | 174 | 1.04x |
+
+### What the disassembly shows
+Turnip's `a*b+c` compute loop compiles to four latency-4 mad instructions on one
+dependent register:
+```
+(sy)(nop3) mad.f32 r1.x, c4.y, r1.x, c4.x
+   (nop3)  mad.f32 r1.x, c4.x, r1.x, c4.y
+   (nop3)  mad.f32 r1.x, c4.y, r1.x, c4.x
+           mad.f32 r1.x, c4.x, r1.x, c4.y
+```
+Stats: 45 instr / **29 nops (64%)** / 2 regs / 16 max_waves. The `(nop3)` between
+each mad is the a6xx mad result latency (~4 cycles); the chain is latency-bound and
+Turnip reaches the mad-throughput ceiling (~52 GFLOPS).
+
+### The root cause (specific, evidence-based)
+1. **It is a COMPILER difference, not hardware or driver-config.** On an explicitly
+   fused `fma()` the two drivers are within 2% (52.1 vs 53.4). They only diverge
+   when the source is written as `a*b + c`. So the hardware, the KGSL kernel, and
+   the driver config are NOT the limiter - the UMD shader compiler is.
+2. **Stock applies aggressive (non-IEEE) optimization that Turnip correctly does
+   not.** On `a*b + c` stock is 2.4x its own `fma()` rate. The most plausible
+   mechanism: the loop body `a=a*b+c; a=a*c+b; a=a*b+c; a=a*c+b` with b,c constant
+   algebraically composes to a single `a*K + L`; the Qualcomm compiler
+   reassociates/const-folds this unsafe collapse (allowed for non-`precise`
+   arithmetic under fast-math), doing far less work per iteration. Turnip's ir3 is
+   IEEE-correct - it will not reassociate float ops that change results (verified:
+   even a `precise`-qualified shader is unchanged, and there is no ir3 flag to force
+   the unsafe fusion), so it faithfully executes all four mads.
+3. **On the real, IEEE-respecting graphics path the gap is small (4-8%).** Once the
+   workload is not a pathological reassociable ALU chain, the difference collapses
+   to ir3 producing slightly less tightly scheduled code than the mature Qualcomm
+   compiler - e.g. the fragment shader is 33 instr with 14 nops (42%) of ALU-latency
+   filler that 8 in-flight waves do not fully hide. That ~8% on identical shaders is
+   the same order as the 4-8% seen in real 3DMark titles. It is not one missing
+   feature; it is accumulated instruction-scheduling/register-allocation polish in a
+   proprietary compiler that has had years of Adreno-specific tuning.
+
+### Conclusion
+Turnip cannot reach stock's raw speed because the stock **shader compiler** is
+better: it (a) exploits unsafe/fast-math reassociation Turnip refuses to do (the
+huge but rarely-relevant compute-microbench gap), and (b) schedules identical
+shaders ~8% tighter (the small, real-title gap). Both are UMD compiler quality, not
+hardware, config, bandwidth, or the levers already tuned. Closing (b) is genuine
+upstream ir3 scheduler/RA work; matching (a) would mean shipping non-IEEE fast-math
+by default (a correctness regression, not worth it). This is why dw_noubwc lands at
+93-96% of stock and no config lever moves it: the residual is compiler polish, and
+the GPU is already 99% saturated executing Turnip's (correct, slightly-less-optimal)
+instruction stream.

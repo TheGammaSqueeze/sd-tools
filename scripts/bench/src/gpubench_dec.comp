@@ -1,0 +1,15 @@
+#version 450
+layout(local_size_x = 64) in;
+layout(std430, binding = 0) buffer Buf { float data[]; };
+layout(push_constant) uniform PC { uint iters; } pc;
+void main() {
+  uint id = gl_GlobalInvocationID.x;
+  float a=data[id], b=data[id]+1.0, c=data[id]+2.0, d=data[id]+3.0;
+  float e=data[id]+4.0, f=data[id]+5.0, g=data[id]+6.0, h=data[id]+7.0;
+  float k=1.0000001, m=0.9999999;
+  for (uint i=0u;i<pc.iters;i++){
+    a=a*k+m; b=b*k+m; c=c*k+m; d=d*k+m;
+    e=e*k+m; f=f*k+m; g=g*k+m; h=h*k+m;
+  }
+  data[id]=a+b+c+d+e+f+g+h;
+}
