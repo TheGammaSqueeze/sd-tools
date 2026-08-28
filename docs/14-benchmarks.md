@@ -132,6 +132,20 @@ risk if the GMU fails to init; the silicon is also a low bin (Adreno613v1) that
 may not run higher stably even if the cap is lifted. Parked pending an explicit
 go-ahead for the GMU-firmware RE.
 
+
+### GMU firmware: no patchable constant (analysis done)
+
+Followed the GMU-RE lead to a conclusion. `a662_gmu.bin` (Thumb-2, unsigned) has
+NO simple patch target for the 1010 cap: the 1000/1040 "MHz" values are ns
+timeouts (1.0s/1.04s), not a freq clamp, and there is no max-corner constant
+either (0x1a0/TURBO_L1 never appears; the 0x100/0x200 hits are the block-header
+table). The GMU's frequency/voltage limit is algorithmic (its DCVS state machine
+plus the AOP-defined GX-corner availability), not a single editable value. So a
+GMU-firmware OC would require reverse-engineering and rewriting the Thumb-2 DCVS
+logic (large effort, high brick risk if GMU init breaks) - parked pending an
+explicit go-ahead. Net: no accessible or tractable lever raises the GPU above
+1010 on this unit.
+
 CPU: no accessible lever at all - no `/dev/mem` (CONFIG_DEVMEM off, even under
 permissive), no rpmh/opp/regmap/clk register debugfs, no cpufreq OPP above 2400,
 and building the ioremap EPSS module needs the GKI kernel source (network-blocked).
