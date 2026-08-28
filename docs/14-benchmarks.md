@@ -1307,3 +1307,19 @@ compute shaders (blur, post-processing, upscalers) can get a large boost. Kept a
 an opt-in (GAMMA_FP16_COMPUTE) since some compute is precision-sensitive; the
 fragment fp16 stays the ULTRA default. Source has the gate; next ULTRA rebuild will
 expose GAMMA_FP16_COMPUTE on the deployed driver. Patch: turnip-force-fp16.patch.
+
+## compute-fp16 DEFAULT-ON corrupts real titles - keep it OPT-IN (correctness catch)
+
+Tried making compute fp16 default-on too (ULTRA-MAX, driver 16330312). Benched fine
+(gamebench 13.9, gpubench_dec 84.6, compute 125.1) BUT it CORRUPTS 3DMark Wild Life
+Extreme - the render shows a black band + speckle artifacts (WLE uses a compute
+shader whose fp16 demotion breaks it; the inflated 189 score is from rendering less/
+wrong). Fragment-only fp16 renders WLE CLEAN. So compute fp16 must stay OPT-IN
+(GAMMA_FP16_COMPUTE) - it is a big win (+137%) for compute you know is fp16-safe
+(post-processing/upscale) but not blanket-safe. REVERTED: the deployed baseline and
+the shipped ULTRA zip stay fragment-fp16-only (16330280, renders every tested title
+correctly). Lesson: always screenshot-verify precision changes on a real title.
+Also closed two deep avenues this pass: ir3 fp16 vec2-packing needs novel backend
+rpt-group formation from independent scalar ops (multi-day, deferred); 16-bit
+texture sampling is ALREADY auto-enabled by ir3 when results are consumed at fp16
+(so ULTRA's fp16 already gets the texture-bandwidth benefit).
