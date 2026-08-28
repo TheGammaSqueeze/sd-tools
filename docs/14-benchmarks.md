@@ -536,3 +536,40 @@ closer than the microbenchmarks suggested. The device is left on the multiview
 Turnip (the session's deployed driver); swap to stock for peak performance with
 `fastboot flash vendor /work/55g1/vendor_live.img`, back to Turnip with
 `fastboot flash vendor /work/55g1/vendor_turnip_mv.img` (both via fastbootd).
+
+## Root of the fragment gap: stock uses the 2x FP16 ALU, Turnip does not
+
+Chased WHY stock's fragment path leads. Built three fragment variants of the same
+interleaved multiply-add loop and ran them on both drivers via bind-mount (1920x1080,
+512 iters, GPU @1010, device-confirmed):
+
+| fragment shader precision | stock GFLOPS | Turnip GFLOPS |
+|---------------------------|--------------|---------------|
+| fp32 (`float`) | 77.7 | 42.6 |
+| mediump (`RelaxedPrecision`, 34 decorations verified in the SPIR-V) | **125.6** | 42.3 |
+| explicit `float16_t` (GL_EXT_shader_explicit_arithmetic_types_float16) | **125.1** | 42.3 |
+
+The tell: **stock speeds up ~1.6x when the shader drops to 16-bit (77 -> 125),
+because the Adreno a6xx runs FP16 ALU at ~2x rate; Turnip stays pinned at ~42
+GFLOPS at every precision** - fp32, mediump, AND explicit fp16 are all 42.3. So
+Turnip is not engaging the 2x FP16 path at all on this workload (it computes even
+declared-fp16 math at the single (fp32) rate), and its fragment ALU throughput is a
+flat ~42 regardless of precision. Two independent stock advantages stack: a ~1.8x
+base fp32 fragment-ALU lead, plus a ~1.6x FP16 multiplier Turnip does not capture,
+so a pure mediump fragment loop is ~3x on stock (125 vs 42). Turnip DOES carry the
+lowering machinery (`tu_shader.cc` `mediump_16bit_alu = true`, `ir3_nir.c`
+`nir_lower_mediump_io`), so the miss is most likely that ir3 is not packing the
+interleaved fp16 ops into the vec2 (half2) form that actually doubles a6xx FP16
+rate - a deep ir3 scheduling limitation, not a driver build flag (rebuilding with
+LTO/-O3 optimizes the CPU-side driver, not the GPU shader, so it cannot move these
+numbers).
+
+Why the real WLE gap was only 12% despite this: mobile games (and WLE) lean on
+mediump, which is exactly where stock's FP16 edge is largest, yet WLE is still
+dominated by texturing/bandwidth/fixed-function, so the ~3x mediump-ALU advantage
+only nets ~12% end-to-end. Net: **stock's fragment lead is real and rooted in FP16
+ALU utilization Turnip does not match; closing it needs ir3 fp16-packing work, well
+beyond a driver rebuild.** Bench artifacts: `gfxbench_mp.frag` (mediump) and
+`gfxbench_f16.frag` (explicit fp16), plus `.spv`/`_frag_spv.h`/`.c`/binaries, under
+scripts/bench/src. Conclusion for the GOAL stands: stock is the highest-performing
+driver on this GPU; Turnip is a within-~12%-on-real-games compatibility option.
