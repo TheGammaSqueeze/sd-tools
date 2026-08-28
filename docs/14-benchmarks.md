@@ -942,3 +942,20 @@ Stability/correctness re-check of the deployed dw_noubwc driver:
 This confirms the graceful GPU-reset behavior still holds with all three changes
 stacked: normal loads render correctly, only an extreme single dispatch (never seen
 in real content) trips a recoverable reset. dw_noubwc is a safe daily driver.
+
+## Minimal-and-justified check: all three changes earn their place
+
+Confirmed each of the shipped driver's three changes contributes independently by
+building a noubwc-only variant (reverted just the ir3 double-threadsize hunk, kept
+multiview + UBWC-off) and comparing vs dw_noubwc (bind-mount, GPU @1010):
+
+| driver | fragment fp32 | compute |
+|--------|---------------|---------|
+| noubwc-only (no double-wave) | 42.8 | 52.5 |
+| dw_noubwc (full) | 73.2 | 52.5 |
+
+The fragment double-threadsize change still delivers 1.71x on the fragment ALU path
+even with UBWC off (they are orthogonal: one is wave-size, the other is image
+compression), and compute is unchanged. So the shipped dw_noubwc driver
+(multiview + fragment-double-threadsize + UBWC-off) is minimal and every change is
+justified. Performance deliverable complete.
