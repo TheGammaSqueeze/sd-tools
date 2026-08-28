@@ -1143,3 +1143,27 @@ advantage is not a switch Turnip can flip - it is an optimization pass the matur
 Qualcomm compiler has and open-source ir3 does not. This definitively closes the
 "can we just enable unsafe math" question: no. The fast-math build is kept as a
 documented negative (patch + .so); dw_noubwc remains the shipped best.
+
+## Experiment: tighter ALU delay slots (alu_to_alu 3->2) - CORRUPTS, HW needs 3
+
+The deep dive noted Turnip's shaders carry many nops (the fragment shader is 33
+instr / 14 nops). ir3 sets the gen6 ALU-to-ALU delay to 3 slots
+(`ir3_compiler.c` `delay_slots.alu_to_alu = 3`), which is what puts the `(nop3)`
+between dependent mads; a7xx uses 2. Hypothesis: maybe gen6 is over-conservative
+and the Adreno 613 tolerates 2 (which would let ir3 schedule tighter and explain
+the gap). Tested it (env-gated GAMMA_ALUDELAY2, gen6 -> a7xx-style 2/5/1):
+- disasm confirmed the reduction: the compute loop dropped `(nop3)` -> `(nop2)`
+  (45 instr/29 nops -> 37/21), and compute microbench rose 52.0 -> 54.2 (+4%).
+- BUT it is INCORRECT: WLE rendered a **black/corrupt frame** (see
+  `gpu/re/aludelay2_corruption_wle.png` - the scene is black with noise on the HUD)
+  and the score dropped to 164. The tighter delay makes dependent ALU ops read
+  stale registers.
+
+Conclusion: **the Adreno 613 genuinely requires 3 ALU delay slots** - Turnip's
+value is correct, not over-conservative, and the +4% compute was garbage math. This
+is an important correction to the deep dive: the nops in Turnip's shaders are
+HARDWARE-MANDATED latency, not scheduling looseness. The stock blob has the same
+nops and cannot remove them either (physics). So the real-title gap is NOT excess
+nops - it is instruction count / register allocation (occupancy) / the unsafe
+reassociation stock does, not delay-slot scheduling. Patch kept as a documented
+INCORRECT experiment (`turnip-aludelay2-experiment-INCORRECT.patch`); reverted.

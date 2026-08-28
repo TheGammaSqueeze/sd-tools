@@ -1,0 +1,22 @@
+diff --git a/src/freedreno/ir3/ir3_compiler.c b/src/freedreno/ir3/ir3_compiler.c
+index aed282ca..e52696e1 100644
+--- a/src/freedreno/ir3/ir3_compiler.c
++++ b/src/freedreno/ir3/ir3_compiler.c
+@@ -319,6 +319,17 @@ ir3_compiler_create(struct fd_device *dev, const struct fd_dev_id *dev_id,
+          compiler->delay_slots.non_alu = 5;
+          compiler->delay_slots.cat3_src2_read = 1;
+       }
++
++      /* GammaOS experiment (GAMMA_ALUDELAY2 env): try the a7xx-style tighter ALU
++       * delay slots on gen6 too. Turnip defaults gen6 to alu_to_alu=3; if the
++       * Adreno 613 actually tolerates 2 (like the stock blob may schedule), this
++       * removes a nop between dependent ALU ops. Correctness-critical - verified
++       * on device before shipping. */
++      if (compiler->gen == 6 && os_get_option("GAMMA_ALUDELAY2")) {
++         compiler->delay_slots.alu_to_alu = 2;
++         compiler->delay_slots.non_alu = 5;
++         compiler->delay_slots.cat3_src2_read = 1;
++      }
+    } else {
+       compiler->max_const_pipeline = 512;
+       compiler->max_const_geom = 512;
