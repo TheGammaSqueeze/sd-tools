@@ -269,3 +269,18 @@ At duty 255 the fan runs ~7500-7900 RPM. Duty tracks speed; writes outside 0-255
 return EIO. The bench setup drives this; `scripts/bench/device_fan.sh <0-255>` is
 a standalone helper. Found by tracing the DT `gpio_pwm` node after the prop and
 the PMIC LPG pwmchip0 both failed.
+
+### msm_kgsl.ko is not the clamp; the AOP GX voltage table is the prime suspect
+
+Tick analysis: pulled and inspected msm_kgsl.ko (aarch64, vendor_dlkm). It carries
+the pwrlevel/corner/rail vote to the GMU faithfully (traces kgsl_gmu_pwrlevel,
+kgsl_rail, kgsl_buslevel) - it does not clamp the corner, so patching KGSL will
+not lift the wall. Since the DTB corner 0x1ff also had zero effect, the clamp is
+BELOW KGSL. The most likely real limiter is the AOP/RPMh firmware's GX rail
+(gfx.lvl) resource: if it only defines corners up to TURBO_L1 (0x1a0), any higher
+vote (TURBO_L3/SUPER_TURBO) clamps to the same voltage, so the OC frequency runs
+undervolted and the SoC browns out - which matches the observed hard power
+collapse with no software fault. Confirming/lifting this needs reversing and
+editing the GX voltage table inside aop.mbn (deep, re-sign with the vendored
+SecTools test keys, EDL-recovery risk) - the deepest lever, parked for explicit
+go-ahead. No non-destructive lever remains that raises GPU voltage above stock.
