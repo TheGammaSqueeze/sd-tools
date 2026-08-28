@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "name": "GammaOS Turnip - Adreno 613 tuned (VK 1.3, UBWC-off + FS wide-wave)",
+  "description": "Self-built Mesa Turnip tuned for the Adreno 613 (gen6_3): forced multiview so it advertises Vulkan 1.3, fragment shaders opt into 128-wide waves, and UBWC framebuffer compression disabled (a measured net loss on this GPU). Reaches 93-96 percent of the stock Adreno blob in real titles while exposing Vulkan 1.3 and ~150 device extensions for DXVK/Winlator, emulators and Zink. Built against Android API 31.",
+  "author": "TheGammaSqueeze",
+  "packageVersion": "1",
+  "vendor": "Mesa",
+  "driverVersion": "1.3.359 (Mesa 26.3.0-devel)",
+  "minApi": 31,
+  "libraryName": "vulkan.turnip.so"
+}
