@@ -707,3 +707,26 @@ Findings:
 Net: fp32 fragment is near parity (93%); the last fragment gap is fp16 ALU
 utilization on dependency-bound math, which needs ir3 fp16-vectorization/scheduling
 work. dblwave remains the best/deployed driver.
+
+## Real-title validation of the double-threadsize win: 3DMark Wild Life (2560x1440)
+
+To see whether the fragment double-threadsize win shows up in a real title less
+bandwidth-bound than 4K WLE, ran 3DMark Wild Life (regular, 2560x1440 - shares the
+already-downloaded wild-life data, no download needed) on all three drivers by
+flashing each vendor image (GPU @1010, fan max):
+
+| driver | Wild Life score | avg FPS | vs stock |
+|--------|-----------------|---------|----------|
+| stock Adreno | 700 | 4.20 | baseline |
+| Turnip + FS-double-wave (dblwave) | 607 | 3.64 | 87% |
+| Turnip orig (pre-dblwave, multiview) | 600 | 3.59 | 86% |
+
+Result: dblwave beats the pre-dblwave Turnip by only **+1.2%** (607 vs 600) in a
+real title, even at 1440p, despite the ~1.7x fragment-ALU microbench gain. So even
+Wild Life regular is bandwidth/geometry/driver-bound rather than fragment-ALU
+bound - the extra fragment ALU headroom stays latent. The dblwave change is a
+strict, no-regression improvement (microbench +70%, real +1.2%, correct render)
+that will matter for genuinely fragment-ALU-heavy content (heavy post-processing,
+emulator upscaling/CRT shaders, compute-in-fragment), but mainstream game
+benchmarks do not expose it. Turnip real-world sits at ~86-90% of stock across
+WLE (4K) and Wild Life (1440p) regardless. dblwave remains the deployed best.
