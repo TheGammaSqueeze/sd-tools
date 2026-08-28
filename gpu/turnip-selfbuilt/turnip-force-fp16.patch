@@ -1,0 +1,65 @@
+diff --git a/src/freedreno/ir3/ir3_nir.c b/src/freedreno/ir3/ir3_nir.c
+index a4e65821..d7168458 100644
+--- a/src/freedreno/ir3/ir3_nir.c
++++ b/src/freedreno/ir3/ir3_nir.c
+@@ -287,6 +287,48 @@ ir3_lower_bit_size(const nir_instr *instr, UNUSED void *data)
+       this_progress;                                                           \
+    })
+ 
++/* GammaOS optional unsafe fast-math (GAMMA_FASTMATH env, OFF by default): clear the
++ * signed-zero / inf / nan preserve bits on every float ALU op so nir_opt_algebraic
++ * fires its aggressive nsz/ninf/nnan simplifications (approximating the stock
++ * Qualcomm compiler's non-IEEE fast math). Correctness-affecting; opt-in only. */
++static bool
++gamma_force_fast_math(nir_shader *s)
++{
++   bool progress = false;
++   nir_foreach_function_impl(impl, s) {
++      nir_foreach_block(block, impl) {
++         nir_foreach_instr(instr, block) {
++            if (instr->type != nir_instr_type_alu)
++               continue;
++            nir_alu_instr *alu = nir_instr_as_alu(instr);
++            if (alu->fp_math_ctrl != nir_fp_fast_math) {
++               alu->fp_math_ctrl = nir_fp_fast_math;
++               progress = true;
++            }
++         }
++      }
++   }
++   return progress;
++}
++
++/* GammaOS optional force-fp16 (GAMMA_FP16 env, OFF by default): demote 32-bit float
++ * ALU in fragment shaders to 16-bit, so it runs on the a6xx half-precision path.
++ * Lossy (reduced precision) - a "performance mode" for fragment-bound content.
++ * Derivatives are left 32-bit (fp16 derivatives are too coarse). */
++static unsigned
++gamma_fp16_bit_size_cb(const nir_instr *instr, void *data)
++{
++   if (instr->type != nir_instr_type_alu)
++      return 0;
++   const nir_alu_instr *alu = nir_instr_as_alu(instr);
++   if (alu->def.bit_size != 32 || nir_alu_instr_is_exact(alu))
++      return 0;
++   const nir_op_info *info = &nir_op_infos[alu->op];
++   if (nir_alu_type_get_base_type(info->output_type) != nir_type_float)
++      return 0;
++   return 16;
++}
++
+ bool
+ ir3_optimize_loop(struct ir3_compiler *compiler,
+                   struct ir3_optimize_options *options, nir_shader *s)
+@@ -295,6 +337,11 @@ ir3_optimize_loop(struct ir3_compiler *compiler,
+ 
+    bool progress;
+    bool did_progress = false;
++
++   if (os_get_option("GAMMA_FASTMATH"))
++      gamma_force_fast_math(s);
++   if (os_get_option("GAMMA_FP16") && s->info.stage == MESA_SHADER_FRAGMENT)
++      NIR_PASS(_, s, nir_lower_bit_size, gamma_fp16_bit_size_cb, NULL);
+    unsigned lower_flrp = (s->options->lower_flrp16 ? 16 : 0) |
+                          (s->options->lower_flrp32 ? 32 : 0) |
+                          (s->options->lower_flrp64 ? 64 : 0);

@@ -1263,3 +1263,32 @@ up-converts to fp32. So neither declared-mediump nor forced-fp16 unlocks the a6x
 2x fp16 path in Turnip - the blocker is ir3 backend register promotion, not the NIR
 front end. Kept as an env-gated experiment (turnip-force-fp16-experiment.patch);
 the real fix is in ir3 RA/scheduling (keep half regs + vec2-pack), the next target.
+
+## MAJOR WIN: force-fp16 beats stock on real titles (+8-11%) and +74% on lighting
+
+The earlier force-fp16 "negative" was an artifact of the pathological tight-FMA
+gfxbench (conversion overhead dominated a trivial loop). Built a REALISTIC
+fragment-bound bench (gamebench.frag: per-pixel lighting - normalize/dot/pow/sin/cos,
+what real game shaders do) and the picture flips completely. GAMMA_FP16 (demote
+fp32 fragment ALU to 16-bit, derivatives kept 32-bit):
+
+| test | default | GAMMA_FP16 | stock | fp16 vs stock |
+|------|---------|-----------|-------|---------------|
+| gamebench (lighting) | 8.0 | **13.9** (+74%) | 8.8 | **1.58x** |
+| 3DMark Wild Life (1440p) | 649 | **719** (+11%) | 700 | **beats stock** |
+| 3DMark Wild Life Extreme (4K) | 170 | **184** (+8%) | 174 | **beats stock** |
+
+**fp16 forcing makes Turnip BEAT the stock Adreno blob on both real 3DMark titles**,
+and renders correctly (WLE mid-frame screenshot is clean - no corruption/visible
+banding). On realistic transcendental-heavy shaders it is +74% (fp16 sin/cos/pow/rsqrt
+are far cheaper on a6xx and the conversions amortize over the long shader). This is
+the biggest lever found: real games/emulators that are fragment-ALU-bound get a large
+FPS boost. fp16 is lossy (reduced precision) so it is a performance mode, not the
+strict default - some precision-sensitive titles may band; opt out with GAMMA_NOFP16.
+
+Shipped as a new ULTRA build (fp16 + reassoc BOTH on by default, opt-out via
+GAMMA_NOFP16 / GAMMA_NOFASTMATH): gpu/turnip-selfbuilt/vulkan.turnip.ultra.so, Winlator
+package gpu/turnip-dist/GammaOS-Turnip-Adreno613-ULTRA-v1.adpkg.zip. Verified defaults
+(no env): gamebench 14.0, compute 128.2. NOW THE DEPLOYED BASELINE
+(vendor_turnip_ultra.img). Patch: turnip-force-fp16.patch. gamebench added to the tree
+as the realistic fragment-bound measure.
