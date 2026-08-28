@@ -354,3 +354,21 @@ titles - a compatibility choice, not a performance one. Turnip is kept in the tr
 scripts/swap_vulkan_turnip.sh (bakes it into the vendor image at
 /vendor/lib64/hw/vulkan.adreno.so) if a specific app needs it; stock is preserved
 at gpu/stock-qualcomm/vulkan.adreno.so for instant revert.
+
+### Turnip DEPLOYED system-wide (baked into /vendor, device-confirmed)
+
+Per request, baked the self-built Turnip into the vendor partition and flashed it,
+so it is now the persistent system Vulkan driver for all apps (games/emulators):
+- Pulled the live vendor (`/work/55g1/vendor_live.img`, the stock backup), grew
+  the ext4 into the partition's ~30 MB slack (the now-unused avb hashtree region),
+  and `debugfs`-swapped `/vendor/lib64/hw/vulkan.adreno.so` for Turnip with the
+  correct `same_process_hal_file:s0` context + 0644 (`/work/55g1/vendor_turnip.img`).
+- Flashed via fastbootd (verity already disabled). Device boots in ~15 s, UI
+  renders at full 1080x1920 (GLES composition, unaffected), and gpubench reports
+  `Turnip Adreno (TM) 613` = every Vulkan app now uses Turnip.
+- GLES/EGL stay on the Qualcomm blobs; only the Vulkan path changed.
+
+Tradeoff (measured): Turnip gives newer Vulkan (1.4) and open-source
+compatibility for the games/emulators this handheld runs, at ~52 vs ~128 GFLOPS
+for raw FMA compute. Evaluate real titles; revert instantly with
+`fastboot flash vendor /work/55g1/vendor_live.img` (stock backup preserved).
