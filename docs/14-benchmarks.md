@@ -924,3 +924,21 @@ the modern-Vulkan stack the stock driver cannot run: DXVK / VKD3D-Proton (Winlat
 Box64 Windows gaming), newer Vulkan emulators, and Zink (GL-over-Vulkan). Net
 deliverable: dw_noubwc gives ~93-96% of stock's raw speed AND the modern Vulkan 1.3
 surface - the best of both for this handheld.
+
+## Deliverable verification: dw_noubwc stability + app survey (device-confirmed)
+
+App survey (pm list packages -3): the test panel has no emulator / Winlator / DXVK
+app installed (only Chrome, 3DMark, org.rems.rsdkv5 Retro-Engine, a small game,
+input/audio utilities). So no currently-installed app exploits Turnip's VK 1.3
+surface - the modern-Vulkan value-add is architectural (it is what lets DXVK /
+Winlator / newer Vulkan emulators / Zink run at all, which the frozen stock VK 1.1
+blob cannot), not something this bare bench image exercises.
+
+Stability/correctness re-check of the deployed dw_noubwc driver:
+- compute gpubench 8192x2048: 52.0 GFLOPS (normal)
+- fragment gfxbench 1080p: 73.0 GFLOPS (normal - the double-wave fp32 path)
+- heavy gpubench 32768x8192: hits VK_ERROR_DEVICE_LOST but the DEVICE SURVIVES
+  (boot_completed=1) and immediately recovers - the next compute run returns 52.3.
+This confirms the graceful GPU-reset behavior still holds with all three changes
+stacked: normal loads render correctly, only an extreme single dispatch (never seen
+in real content) trips a recoverable reset. dw_noubwc is a safe daily driver.
