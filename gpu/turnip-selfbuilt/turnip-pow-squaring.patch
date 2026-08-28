@@ -1,0 +1,32 @@
+Constant-integer pow() lowering to binary-exponentiation (repeated squaring).
+
+ir3 sets lower_fpow, so pow(x, N) becomes exp2(N*log2(x)) - two SFU ops that run
+fp32-only on the a6xx. Under forced-fp16 that inserts fp16<->fp32 conversions around
+every specular pow(ndh, shininess), which is in nearly every lighting shader. Mesa
+only recovers the squaring form for the post-lowered exp2(log2(x)*8) at N=8. This
+extends that recovery to every constant positive-integer exponent 5..64 via binary
+exponentiation, keeping the math in the shader's native precision (and it is more
+accurate than the log/exp roundtrip). Measured +20% on the fp16 lighting bench
+(pow(x,32): 14.0 -> 16.8 GFLOPS) and +3.7% fp32. Gated on gamma_reassoc (ULTRA
+default-on; opt out with GAMMA_NOFASTMATH). Match is on the POST-lowering
+exp2(contract)(fmul(flog2(a), N)) form, mirroring Mesa's existing N=8 pattern, so it
+fires after lower_fpow rather than racing it.
+
+--- a/src/compiler/nir/nir_opt_algebraic.py
++++ b/src/compiler/nir/nir_opt_algebraic.py
+@@ after the boolean-comparison extend block (approx line 2064)
++def _gamma_powi_tree(n):
++   def sq(k):
++      return 'a' if k == 0 else ('fmul', sq(k - 1), sq(k - 1))
++   expr = None
++   for k in range(n.bit_length()):
++      if (n >> k) & 1:
++         term = sq(k)
++         expr = term if expr is None else ('fmul', expr, term)
++   return expr
++
++optimizations.extend([
++   (('fexp2(contract)', ('fmul', ('flog2', a), float(n))), _gamma_powi_tree(n),
++    'options->gamma_reassoc')
++   for n in range(5, 65)
++])

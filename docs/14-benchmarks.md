@@ -1378,3 +1378,29 @@ WLE - GPU 99% saturated on fragment) vertex is not the bottleneck, so default-on
 add position risk for ~0 title FPS. Kept: source gate (turnip-fp16-vertex.patch) +
 vertbench in the tree as the vertex-bound characterization bench. Deployed driver
 unchanged (still ULTRA+LOD 16330528, renders correctly).
+
+## Constant-integer pow() -> repeated squaring: +20% on fp16 lighting (BIG win)
+
+Root-caused a large avoidable cost in fp16 lighting shaders. ir3 sets lower_fpow so
+pow(x, N) is compiled to exp2(N*log2(x)) - a log2 + an exp2 on the a6xx SFU. Those
+SFU ops are fp32-only, so under forced-fp16 the compiler wraps every pow() in
+fp16->fp32->fp16 conversions. pow(ndh, shininess) (specular) is in nearly every
+lighting shader, so this hits real content hard. Mesa already knows repeated squaring
+beats the SFU pair, but only ships the recovery pattern for the post-lowered
+exp2(log2(x)*8) at N=8. Extended it to every constant positive-integer exponent 5..64
+via binary exponentiation (matching the exp2(fmul(flog2(a), N)) post-lowering form so
+it fires cleanly after lower_fpow, not racing it). Repeated squaring stays in the
+shader's native precision and is MORE accurate than the log/exp roundtrip.
+
+Measured (gamebench realistic lighting, pow(ndh,32.0), GPU pinned, bind-mount):
+- fp16 reassoc OFF (exp2/log2): 14.0 GFLOPS
+- fp16 reassoc ON  (squaring):  16.8 GFLOPS  (+20%, == hand-squared reference 16.8)
+- fp32 reassoc OFF: 8.0 -> ON 8.3 GFLOPS (+3.7%)
+Output is bit-for-bit the hand-squared shader (correctness confirmed; squaring is the
+more accurate form). Gated on gamma_reassoc (ULTRA default-on; opt out GAMMA_NOFASTMATH).
+Baked into the ULTRA driver (vulkan.turnip.ultra.so now 16337896) + Winlator zip
+ULTRA-v3. vendor_turnip_ultra.img repacked (debugfs in-place swap, same_process_hal_file
+context preserved, e2fsck clean) and staged for a clean foreground flash + real-title
+(WLE/WildLife) revalidation next tick. Device still on the prior working ULTRA+LOD
+(16330528) this tick. Patch: turnip-pow-squaring.patch. Also added gamebench_pm (the
+hand-squared reference variant) to the tree.
