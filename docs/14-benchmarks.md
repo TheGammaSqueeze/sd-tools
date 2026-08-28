@@ -984,10 +984,17 @@ register/command-stream level to compare what stock programs vs Turnip. Findings
   value decode still needs one refinement (the per-section sub-header alignment) to
   emit correct (mmio_offset, value) pairs.
 
-Status: RE infrastructure is in place (capture + section-walk). Next step is to
-finish the REGS decode, capture a matching STOCK snapshot (flash stock, fault,
-capture), and diff the config registers (GRAS/RB_BIN_CONTROL bin size, RB_CCU_CNTL,
-UBWC control, LRZ) to see if stock programs anything Turnip does not - the same
-class of config lever that made UBWC-off a +7% win. This is a multi-tick effort with
-uncertain payoff (may confirm a compiler/command-stream gap rather than a config
-one), but it is the concrete RE path to any remaining lever.
+### RE assessment (honest)
+The capture+decode pipeline works. BUT the only snapshots obtainable are
+FAULT-triggered (heavy-compute DEVICE_LOST), so the graphics-config registers in
+them are in fault/poison state (75 of 1625 regs are 0xdeafbead), NOT a live
+graphics frame. Capturing a clean graphics-frame register set would need forcing a
+fault DURING a Wild Life frame - and KGSL's only manual trigger is `force_panic`,
+which panics the KERNEL (reboots the device), not a recoverable GPU fault. So a
+clean stock-vs-Turnip graphics-config diff is not safely obtainable via this path
+on this kernel. Combined with the earlier proof that the GPU is 99% saturated and
+every config knob (UBWC aside) is neutral, the register-diff RE is unlikely to
+surface a new lever and cannot be done without reboot risk. The realistic remaining
+gap (4-7%) is command-stream/compiler maturity needing upstream ir3 work. RE
+tooling is committed for future use; the raw-performance deliverable stands at
+dw_noubwc = 93-96% of stock.
