@@ -890,3 +890,37 @@ ceiling for Turnip on this GPU. Turnip's standing advantage over stock is not ra
 speed (stock wins by a few percent) but the modern Vulkan 1.3 feature/extension set
 that the frozen VK-1.1 stock blob cannot provide (enables DXVK/Winlator, newer
 emulators, Zink) - see the next section.
+
+## GPU saturation confirms the ceiling; Turnip's value-add is VK 1.3 + 82 extra extensions
+
+### GPU is 99% saturated - the residual gap is pure GPU efficiency, not starvation
+Measured GPU utilization during Wild Life to decide if any perf path remained. The
+`performance` governor with a forced pwrlevel zeroes the devfreq busy counters
+(gpu_busy_percentage and gpubusy both read 0 while pinned - a measurement artifact,
+not idle). Switching to the `simple_ondemand` DVFS governor (full pwrlevel range)
+restores the counters; it still ramps to 1010 under load. Result during the Wild
+Life graphics test on dw_noubwc: idle 0%, and **99% GPU-busy @ 1010 MHz for the
+entire run** (24 samples, all 99%). So the GPU is FULLY SATURATED - Turnip is not
+starved by CPU-submission or sync bubbles (99% leaves no room for a submission
+lever, and stock cannot exceed 100%). This definitively confirms the remaining
+4-7% vs stock is **pure per-frame GPU-cycle efficiency** (the proprietary blob
+emits a slightly cheaper command stream / better state management for the same
+frame), which is diffuse driver maturity with no single addressable lever. The
+raw-performance investigation is complete: dw_noubwc at 93-96% of stock is the hard
+ceiling on this GPU.
+
+### The standing value-add: modern Vulkan (vkdump, device-confirmed)
+Turnip's reason to exist here is not raw speed (stock wins the last few percent) but
+the Vulkan feature/extension set. vkdump on the deployed dw_noubwc vs the stock blob:
+
+| | apiVersion | device extensions | driver |
+|--|-----------|-------------------|--------|
+| **Turnip (dw_noubwc)** | **1.3.359** | **153** | turnip Mesa 26.3.0-devel |
+| stock Adreno | 1.1.128 | 71 | Qualcomm Adreno (frozen) |
+
+Turnip exposes **Vulkan 1.3 with 153 device extensions vs the stock blob's frozen
+Vulkan 1.1 with 71** (+82 extensions, +2 minor versions). That gap is what enables
+the modern-Vulkan stack the stock driver cannot run: DXVK / VKD3D-Proton (Winlator /
+Box64 Windows gaming), newer Vulkan emulators, and Zink (GL-over-Vulkan). Net
+deliverable: dw_noubwc gives ~93-96% of stock's raw speed AND the modern Vulkan 1.3
+surface - the best of both for this handheld.
