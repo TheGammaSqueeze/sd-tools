@@ -120,19 +120,24 @@ new rate under load. No DTB pwrlevel edit is needed.
 
 Device-confirmed on the RG 55G1:
 
-| top OPP | boots | governor-managed load | forced-pin sustained load |
-|---------|-------|-----------------------|---------------------------|
-| 1010 (stock) | yes | stable | (baseline) |
-| 1050 in-place | yes | - | **SoC reset under load** |
-| 1100 in-place | yes | survived a short run | **SoC reset under load** |
+| top OPP | corner | boots | forced-pin sustained load (32768 groups x8192 x4) |
+|---------|--------|-------|--------------------------------------------------|
+| 1010 (stock) | 0x1a0 TURBO_L1 | yes | **stable** (~129 GFLOPS, held 1010, no reset) |
+| 1050 in-place | 0x1a0 | yes | SoC reset |
+| 1100 in-place | 0x1a0 | yes | SoC reset |
+| 1100 in-place | 0x1e0 TURBO_L3 (voltage bump) | yes | SoC reset (no improvement) |
 
-Both 1050 and 1100 boot and clock correctly, but pinning them under sustained
-GPU compute load resets the SoC (self-recovers on reboot, because the in-place
-module still probes cleanly). The GPU RCG reuses the stock TURBO voltage corner,
-so the OC runs the core above its CPRh/ACD envelope for that corner. Raising the
-clock beyond 1010 stably would need a matching voltage-corner / GMU ACD change
-(a much deeper `a650_gmu.bin` / RPMh job), not just the clock table. As-is, the
-stable GPU ceiling on this unit at the stock corner is 1010.
+Method validated by control: stock 1010 survives the exact forced-pin stress that
+resets the OC levels, so the instability is real, not a test artifact (all
+self-recover on reboot because the in-place module still probes cleanly). Raising
+the GPU top pwrlevel's RPMh corner from TURBO_L1 (0x1a0) to TURBO_L3 (0x1e0) in
+the DTB gave the OC more GX voltage but did NOT help 1100 — it reset just as fast.
+That rules out simple GX rail voltage as the limiter and points at the **GMU ACD**
+(the GMU firmware does closed-loop adaptive clock distribution with per-OPP
+calibration; frequencies above the stock 1010 have no ACD data). A stable GPU OC
+therefore needs `a650_gmu.bin` ACD-table work, not just the clock table or an
+RPMh corner bump. **Stable GPU ceiling on this unit: 1010.** The DTB voltage-corner
+lever is `qcom,gpu-pwrlevel@0 { qcom,level }` (0x1a0=TURBO_L1 .. 0x1e0=TURBO_L3).
 
 ### Deployment (bypassing verity for the modified vendor_dlkm)
 
