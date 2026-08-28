@@ -51,6 +51,28 @@ simultaneously). Filled in as the campaign proceeds; raw logs under
 |-----|---------|-------------|-----------|--------------|---------------|----------|---------|
 | baseline | 1010 | 2400 | 129.2 | 298.2 | 37.8 | 38 C | yes (stock) |
 
+## GPU overclock: the real lever is the gpucc module, not the DTB
+
+Adding a GPU pwrlevel to the DTB (e.g. 1100 MHz) makes `gpu_available_frequencies`
+list it, but the clock still clamps to 1010. The GPU RCG frequency table lives in
+`/vendor_dlkm/lib/modules/gpucc-ravelin.ko` (symbol
+`ftbl_gpu_cc_gx_gfx3d_clk_src`), and `clk_rcg2` round_rate picks the highest table
+entry `<=` the request, so a DTB-only 1100 rounds down to the 1010 table entry.
+
+The gfx3d RCG is `clk_rcg2_ops` fed by `clk_alpha_pll_lucid_evo_ops` (a fractional
+PLL that accepts arbitrary set_rate), so extending the module's freq table with
+higher entries genuinely raises the clock. Table format: 24-byte stride, entry =
+`{ u64 freq; u8 src=0x03; u8 pre_div=0x03; u16 m=0; u16 n=0; u64 pad=0 }`
+(pre_div 0x03 = post-divide by 2). Stock top entry is 1010 MHz (0x3c336080).
+`CONFIG_MODULE_SIG` is off and `sig_enforce=0`, so a byte-patched module loads.
+
+Deployment must survive dm-verity on vendor_dlkm: either disable verification on
+the whole vbmeta chain (top `vbmeta` plus `vbmeta_system`, not just the slot
+flags `avbctl` toggles) before booting to system, or recompute the vendor_dlkm
+hashtree and re-sign vbmeta. Disabling only the `vbmeta_a` slot flags left
+`vbmeta_system` enforcing verity, which hung first-stage mount on the modified
+partition. Patcher and recovery notes: `/work/55g1/gpucc/`.
+
 ## Fan control (important)
 
 The RG 55G1 fan is a gpio-pwm (`gpio-pwm.ko`, DT node `soc/gpio_pwm`, pinctrl
