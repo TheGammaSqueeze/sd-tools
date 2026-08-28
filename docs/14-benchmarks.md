@@ -998,3 +998,28 @@ surface a new lever and cannot be done without reboot risk. The realistic remain
 gap (4-7%) is command-stream/compiler maturity needing upstream ir3 work. RE
 tooling is committed for future use; the raw-performance deliverable stands at
 dw_noubwc = 93-96% of stock.
+
+## Perfcounter RE on a real app: pipe stubbed on this kernel - RE avenues closed
+
+Final non-risky RE attempt: enabled the KGSL adreno_profile per-stage busy counters
+(sp/cp/tp/rb/uche/vsc/ccu/lrz) and ran 3DMark Wild Life (a real multi-draw app,
+in case adreno_profile only wraps app submissions and not shell ones). The
+profiling/pipe captured **0 bytes** during the entire Wild Life run - identical to
+the shell-workload result. So the KGSL adreno_profile per-submission logging is
+stubbed/non-functional on this kernel for every submission type; the debugfs
+perfcounter pipe cannot produce per-stage cycle data here. That closes the last
+low-risk RE avenue (the snapshot path is fault-only + force_panic reboots; the
+devcoredump path is not used by KGSL here; mesa crashdec cannot read the KGSL
+binary format).
+
+### Optimization investigation: COMPLETE
+Every accessible avenue has been explored end to end - TU_DEBUG knob sweeps, ir3
+codegen (fragment double-threadsize, fp16 vectorization), GPU-saturation profiling
+(99% busy), and register/perfcounter RE. The single lever that ever moved real
+performance was UBWC-off (+7%). The deliverable stands: **dw_noubwc (multiview +
+fragment double-threadsize + UBWC-off) = 93-96% of the stock Adreno blob in real
+titles, plus Vulkan 1.3 / 153 extensions**, stable, minimal-and-justified. Closing
+the residual 4-7% would require deep upstream ir3 command-stream work with near-zero
+real-world payoff (the GPU is already saturated on cycles the blob just emits
+slightly more efficiently). RE tooling is committed for any future kernel that
+exposes working perfcounters.
