@@ -1421,3 +1421,24 @@ exponent specular (their pow calls are non-integer / masked), whereas classic Bl
 lighting (gamebench) gains +20%. Net: the deployed ULTRA is now the pow-squaring build,
 strictly >= the prior ULTRA on every measured title and much faster on pow-heavy shaders.
 Device left on this validated ULTRA (16337896).
+
+## Transcendental fp16 profiling: single-SFU ops already benefit - no more pow-style wins
+
+After the big integer-pow win, profiled whether the other SFU transcendentals suffer the
+same fp16<->fp32 conversion penalty pow did (pow was two chained SFU ops, log2 then exp2,
+with an fp32 multiply between). Added three fragment microbenches (gb_exp, gb_trig,
+gb_sqrt) each with the given op in the hot loop, measured fp16 vs GAMMA_NOFP16 fp32
+(GPU pinned):
+- exp2/log2 (fog/HDR): fp16 12.5 vs fp32 7.6  (1.64x)
+- sin/cos:             fp16  9.8 vs fp32 7.0  (1.40x)
+- sqrt/rsqrt:          fp16 10.5 vs fp32 7.6  (1.38x)
+All three ALREADY get a solid fp16 speedup, so there is no pow-style "eliminate the SFU"
+opportunity for single-SFU ops - the conversions around a single SFU op are cheap; pow was
+uniquely bad only because it chains two. Also tested half-integer exponents (the one place
+a manual form might beat the SFU pair): pow(x,1.5)+pow(x,2.5) via exp2/log2 = 11.5 GFLOPS,
+manual x*sqrt(x)+(x*x)*sqrt(x) = 11.5 GFLOPS - a TIE, because the manual form still needs an
+SFU sqrt. So half-integer pow is NOT worth lowering; the integer-exponent squaring (5..64)
+stays the unique large SFU-avoidance win. Conclusion: SFU-avoidance is now exhausted beyond
+integer pow; the remaining big fp16 lever is the deep ir3 half-reg vec2 packing (scalar
+mad.f16 vectorization, stock 126 vs Turnip 85). Microbenches kept in tree as characterization
+tools. Device unchanged (validated ULTRA 16337896); no flash this tick.
