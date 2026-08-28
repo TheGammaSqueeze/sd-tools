@@ -1,5 +1,5 @@
 diff --git a/src/freedreno/ir3/ir3_nir.c b/src/freedreno/ir3/ir3_nir.c
-index a4e65821..d7168458 100644
+index a4e65821..b7c717bd 100644
 --- a/src/freedreno/ir3/ir3_nir.c
 +++ b/src/freedreno/ir3/ir3_nir.c
 @@ -287,6 +287,48 @@ ir3_lower_bit_size(const nir_instr *instr, UNUSED void *data)
@@ -51,14 +51,16 @@ index a4e65821..d7168458 100644
  bool
  ir3_optimize_loop(struct ir3_compiler *compiler,
                    struct ir3_optimize_options *options, nir_shader *s)
-@@ -295,6 +337,11 @@ ir3_optimize_loop(struct ir3_compiler *compiler,
+@@ -295,6 +337,13 @@ ir3_optimize_loop(struct ir3_compiler *compiler,
  
     bool progress;
     bool did_progress = false;
 +
 +   if (os_get_option("GAMMA_FASTMATH"))
 +      gamma_force_fast_math(s);
-+   if (os_get_option("GAMMA_FP16") && s->info.stage == MESA_SHADER_FRAGMENT)
++   if (os_get_option("GAMMA_FP16") &&
++       (s->info.stage == MESA_SHADER_FRAGMENT ||
++        (s->info.stage == MESA_SHADER_COMPUTE && os_get_option("GAMMA_FP16_COMPUTE"))))
 +      NIR_PASS(_, s, nir_lower_bit_size, gamma_fp16_bit_size_cb, NULL);
     unsigned lower_flrp = (s->options->lower_flrp16 ? 16 : 0) |
                           (s->options->lower_flrp32 ? 32 : 0) |

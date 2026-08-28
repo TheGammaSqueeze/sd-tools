@@ -1292,3 +1292,18 @@ package gpu/turnip-dist/GammaOS-Turnip-Adreno613-ULTRA-v1.adpkg.zip. Verified de
 (no env): gamebench 14.0, compute 128.2. NOW THE DEPLOYED BASELINE
 (vendor_turnip_ultra.img). Patch: turnip-force-fp16.patch. gamebench added to the tree
 as the realistic fragment-bound measure.
+
+## fp16 for COMPUTE too: +137% on non-reassociable compute (DXVK/emulator shaders)
+
+Extended force-fp16 to compute shaders (GAMMA_FP16_COMPUTE, opt-in on top of
+GAMMA_FP16). Measured on the decoupled/non-reassociable compute bench (real
+data-parallel compute, not a collapsible constant chain):
+- gpubench_dec: 35.7 -> **84.7 (+137%, 2.37x)**.
+- gpubench a*b+c: 125.3 (reassoc already handles this one).
+
+So fp16 is a big lever for BOTH paths: fragment (real graphics, +8-74%, beats
+stock) and compute (+137% on genuine data-parallel compute). DXVK / emulator
+compute shaders (blur, post-processing, upscalers) can get a large boost. Kept as
+an opt-in (GAMMA_FP16_COMPUTE) since some compute is precision-sensitive; the
+fragment fp16 stays the ULTRA default. Source has the gate; next ULTRA rebuild will
+expose GAMMA_FP16_COMPUTE on the deployed driver. Patch: turnip-force-fp16.patch.
