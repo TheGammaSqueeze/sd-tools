@@ -504,3 +504,35 @@ next-gen test and Turnip is ~1.8x slower than stock on graphics; the point is th
 compatibility rejection is gone). Driver + meta saved at
 `gpu/turnip-selfbuilt/vulkan.turnip.multiview.so` + `meta-multiview.json`. Revert
 to stock Vulkan: `fastboot flash vendor /work/55g1/vendor_live.img`.
+
+## Real-title comparison: 3DMark Wild Life Extreme, stock vs Turnip (device-confirmed)
+
+The microbenchmarks are pure-ALU loops; real games are limited by texturing,
+bandwidth, triangle setup, fixed-function and driver overhead too. So the decisive
+"which driver is faster for actual games" test is a real title. Ran 3DMark Wild
+Life Extreme (3840x2160, the built-in 4K next-gen benchmark) on BOTH drivers by
+actually flashing each vendor image via fastbootd (a runtime bind-mount does NOT
+reach zygote-spawned apps - they are in a different mount namespace - so the driver
+must be baked into /vendor for an app to use it). GPU pinned to 1010, fan max:
+
+| driver (flashed vendor) | WLE overall score | avg FPS | vs stock |
+|-------------------------|-------------------|---------|----------|
+| stock Adreno (vendor_live.img) | **174** | 1.05 | baseline |
+| multiview Turnip (vendor_turnip_mv.img) | **156** | 0.94 | 0.90x (1.12x slower) |
+
+**Key result: in a real game workload Turnip is only ~12% behind stock (174 vs
+156), NOT the ~1.8x the graphics microbench implied.** The synthetic ALU-bound
+fragment loop massively over-states the real gap, because a real 4K render spends
+most of its time in texturing/bandwidth/fixed-function where Turnip is competitive,
+not in back-to-back FMAs where stock's fragment ALU throughput leads. Both drivers
+run WLE fine (the earlier "no compatible GPU" was purely Turnip's VK-1.0 report,
+now fixed; stock always reported 1.1).
+
+**Verdict for the GOAL:** stock remains the single fastest driver (best microbench
+numbers AND +12% in a real title AND no DEVICE_LOST), so it is the performance
+default. But Turnip is a genuinely viable driver - within ~12% on a real game -
+with newer Vulkan (1.3/1.4) and open-source compatibility as its upside, far
+closer than the microbenchmarks suggested. The device is left on the multiview
+Turnip (the session's deployed driver); swap to stock for peak performance with
+`fastboot flash vendor /work/55g1/vendor_live.img`, back to Turnip with
+`fastboot flash vendor /work/55g1/vendor_turnip_mv.img` (both via fastbootd).
