@@ -1,0 +1,22 @@
+diff --git a/src/freedreno/vulkan/tu_sampler.cc b/src/freedreno/vulkan/tu_sampler.cc
+index eec5ca21..8dc8d135 100644
+--- a/src/freedreno/vulkan/tu_sampler.cc
++++ b/src/freedreno/vulkan/tu_sampler.cc
+@@ -110,6 +110,17 @@ tu_CreateSampler(VkDevice _device,
+    float min_lod = CLAMP(pCreateInfo->minLod, 0.0f, 4095.0f / 256.0f);
+    float max_lod = CLAMP(pCreateInfo->maxLod, 0.0f, 4095.0f / 256.0f);
+ 
++   /* GammaOS optional performance mode (GAMMA_PERF env, OFF by default): clamp
++    * anisotropic filtering off and bias mip selection up, trading a little texture
++    * sharpness for TP/bandwidth savings in real games. Does not affect the default
++    * driver - only applies when the app is launched with GAMMA_PERF set. */
++   static const int gamma_perf = os_get_option("GAMMA_PERF") ? 1 : 0;
++   if (gamma_perf) {
++      aniso = 0;
++      float bias = 0.5f;
++      min_lod = CLAMP(min_lod + bias, 0.0f, 4095.0f / 256.0f);
++   }
++
+    sampler->vk.ycbcr_conversion = ycbcr_conversion ?
+       vk_ycbcr_conversion_from_handle(ycbcr_conversion->conversion) : NULL;
+ 
