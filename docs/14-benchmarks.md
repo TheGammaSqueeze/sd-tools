@@ -1337,3 +1337,22 @@ kept as an opt-in env (GAMMA_LODBIAS=<n>) for users squeezing bandwidth-bound
 titles. fp16 already picked most of WLE's headroom; the residual is not texture
 bandwidth. Deployed driver now carries the option (ULTRA + GAMMA_LODBIAS, default
 0 = identical to ULTRA). Patch: turnip-lodbias.patch.
+
+## fp16 is workload-dependent: wins on transcendental/lighting, neutral on matrix-mul
+
+Built a second realistic fragment benchmark, gamebench2 (matrix/transform-heavy:
+mat3 multiply, dot, fract, normalize per pixel) to test whether fp16's big lighting
+win generalizes. Bind-mount, GPU pinned @1010:
+- gamebench2 ULTRA (fp16 on):   10.6 GFLOPS
+- gamebench2 GAMMA_NOFP16 (fp32): 10.6 GFLOPS
+- gamebench2 stock:              11.6 GFLOPS
+fp16 gives ZERO benefit here (10.6 == 10.6), unlike the lighting shader gamebench
+(+74%). Turnip also sits ~91% of stock on this matrix-mul pattern. Why: the lighting
+shader is dominated by SFU transcendentals (pow/exp/normalize on scalars) where fp16
+halves SFU + register pressure; the matrix shader is dominated by fp mul/add that
+already pack well at fp32 and whose fp16 form needs the same number of ALU slots
+(mad.f16 is not 2x throughput for these dependent chains). So fp16's value is
+workload-dependent: it is a large win for transcendental/lighting-bound fragment
+work and a wash for arithmetic/matrix-bound work - it never regresses these, which
+is why ULTRA (fragment fp16 default-on) is safe as the baseline. gamebench2 added to
+the tree as a second fragment-bound characterization benchmark.
