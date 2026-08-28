@@ -68,28 +68,93 @@ simultaneously). Filled in as the campaign proceeds; raw logs under
 | Run | GPU MHz | CPU big MHz | GPU GFLOPS | CPU big mops | MEM copy GB/s | max temp | stable? |
 |-----|---------|-------------|-----------|--------------|---------------|----------|---------|
 | baseline | 1010 | 2400 | 129.2 | 298.2 | 37.8 | 38 C | yes (stock) |
+| gpu in-place 1050 | 1050 | - | - | - | - | - | no (SoC reset under sustained load) |
+| gpu in-place 1100 | 1100 | - | - | - | - | - | no (SoC reset under sustained load) |
 
-## GPU overclock: the real lever is the gpucc module, not the DTB
+GPU OC status: the in-place method reaches 1050/1100 MHz cleanly (boots, clocks,
+no probe crash) but neither is stable under sustained load at the stock voltage
+corner, so the stable GPU ceiling is 1010 without a GMU/voltage change. See the
+GPU-overclock section below for the full method, the append-crash to avoid, and
+the stability table. CPU OC is blocked (no `/dev/mem`, see docs/07); MEM OC not
+yet attempted.
 
-Adding a GPU pwrlevel to the DTB (e.g. 1100 MHz) makes `gpu_available_frequencies`
-list it, but the clock still clamps to 1010. The GPU RCG frequency table lives in
-`/vendor_dlkm/lib/modules/gpucc-ravelin.ko` (symbol
-`ftbl_gpu_cc_gx_gfx3d_clk_src`), and `clk_rcg2` round_rate picks the highest table
-entry `<=` the request, so a DTB-only 1100 rounds down to the 1010 table entry.
+## GPU overclock: the lever is the gpucc module, and you must edit IN PLACE
 
-The gfx3d RCG is `clk_rcg2_ops` fed by `clk_alpha_pll_lucid_evo_ops` (a fractional
-PLL that accepts arbitrary set_rate), so extending the module's freq table with
-higher entries genuinely raises the clock. Table format: 24-byte stride, entry =
+The GPU clock is capped at 1010 by the freq table compiled into
+`/vendor_dlkm/lib/modules/gpucc-ravelin.ko` (symbol `ftbl_gpu_cc_gx_gfx3d_clk_src`),
+NOT the DTB. `clk_rcg2` round_rate picks the highest table entry `<=` the request,
+so a DTB-only pwrlevel rounds back to the 1010 table entry. The gfx3d RCG is
+`clk_rcg2_ops` fed by `clk_alpha_pll_lucid_evo_ops` (a fractional PLL), so the
+table entry is what sets the achievable rate. Table format: 24-byte stride,
 `{ u64 freq; u8 src=0x03; u8 pre_div=0x03; u16 m=0; u16 n=0; u64 pad=0 }`
 (pre_div 0x03 = post-divide by 2). Stock top entry is 1010 MHz (0x3c336080).
 `CONFIG_MODULE_SIG` is off and `sig_enforce=0`, so a byte-patched module loads.
 
-Deployment must survive dm-verity on vendor_dlkm: either disable verification on
-the whole vbmeta chain (top `vbmeta` plus `vbmeta_system`, not just the slot
-flags `avbctl` toggles) before booting to system, or recompute the vendor_dlkm
-hashtree and re-sign vbmeta. Disabling only the `vbmeta_a` slot flags left
-`vbmeta_system` enforcing verity, which hung first-stage mount on the modified
-partition. Patcher and recovery notes: `/work/55g1/gpucc/`.
+### DO NOT append entries. Edit the existing top entry in place.
+
+APPENDING new freq entries (1050/1100/1150/1200) into the table's trailing zero
+padding **kernel-panics at module load**, device-confirmed via console-ramoops:
+
+```
+Unable to handle kernel paging request at virtual address 0x0200000046868b00
+ESR = 0x96000005  (data abort, translation fault)   Comm: modprobe
+  __clk_register+0x1d4/0x7c0
+  devm_clk_register_regmap+0xac [clk_qcom]
+  qcom_cc_really_probe+0x3f8/0x4dc [clk_qcom]
+  gpucc_ravelin_probe+0x9c/0xcc [gpucc_ravelin]
+```
+
+Growing the table corrupts the clock registration (a garbage pointer built from an
+injected freq value), so `gpucc_ravelin_probe` -> `qcom_cc_really_probe` ->
+`__clk_register` dies. A bisection proved it: the SAME debugfs repack with the
+UNMODIFIED module boots fine, so it is the table growth, not the repack/verity.
+
+The safe method is to change ONLY the existing top entry's 8-byte freq value in
+place (same entry count, same layout). `tools/fw/gpucc_oc.py --in-place <MHz>`
+does this. Device-confirmed: the in-place module loads with no probe crash, and
+KGSL picks up the new rate directly (`max_gpuclk` and `gpu_available_frequencies`
+top both become the new value even with the stock DTB), and `gpuclk` reads the
+new rate under load. No DTB pwrlevel edit is needed.
+
+### Stability (stock voltage corner)
+
+Device-confirmed on the RG 55G1:
+
+| top OPP | boots | governor-managed load | forced-pin sustained load |
+|---------|-------|-----------------------|---------------------------|
+| 1010 (stock) | yes | stable | (baseline) |
+| 1050 in-place | yes | - | **SoC reset under load** |
+| 1100 in-place | yes | survived a short run | **SoC reset under load** |
+
+Both 1050 and 1100 boot and clock correctly, but pinning them under sustained
+GPU compute load resets the SoC (self-recovers on reboot, because the in-place
+module still probes cleanly). The GPU RCG reuses the stock TURBO voltage corner,
+so the OC runs the core above its CPRh/ACD envelope for that corner. Raising the
+clock beyond 1010 stably would need a matching voltage-corner / GMU ACD change
+(a much deeper `a650_gmu.bin` / RPMh job), not just the clock table. As-is, the
+stable GPU ceiling on this unit at the stock corner is 1010.
+
+### Deployment (bypassing verity for the modified vendor_dlkm)
+
+vendor_dlkm is ext4, dm-verity, `avb` anchored in the main `vbmeta`. The debugfs
+edit leaves a stale hashtree, so verity must be off. The clean, device-confirmed
+way is patched boot images built from the LIVE `lun6_*` dumps with the AOSP dtc
+(`AOSP_DTC=prebuilt/dtc-aosp-x86_64`, never the host dtc, which mangles
+`qcom,gpu-freq`): `boot`+`vendor_boot` carry `enforcing=0
+androidboot.selinux=permissive audit=0`, and the vendor_boot first-stage fstab has
+every `avb`/`avb=vbmeta_system`/`avb_keys=` flag stripped (keys kept). Then a
+modified `vendor_dlkm` mounts as plain ext4 and boots. Always flash via fastbootd
+(`adb reboot fastboot`), not bootloader fastboot (rejects `vendor_boot` writes).
+
+### Diagnosing boot hangs: enable console-ramoops
+
+This unit's stock ramoops has `console_size=0`/`record_size=0` (pmsg only), so
+kernel panics are not captured. To debug, edit the vendor_boot DTB `ramoops` node
+(all 15 concatenated DTBs) to carve `console-size = <0x100000>`, `record-size =
+<0x20000>`, `max-reason = <0x05>`, shrinking `pmsg-size` to `<0x80000>`; repack
+with the AOSP dtc. After a crash, `mount -t pstore pstore /sys/fs/pstore` and read
+`console-ramoops-0` / `dmesg-ramoops-0`. Patcher and images: `/work/55g1/gpucc/`,
+`/work/55g1_patched/`.
 
 ## Fan control (important)
 
