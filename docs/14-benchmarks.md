@@ -372,3 +372,15 @@ Tradeoff (measured): Turnip gives newer Vulkan (1.4) and open-source
 compatibility for the games/emulators this handheld runs, at ~52 vs ~128 GFLOPS
 for raw FMA compute. Evaluate real titles; revert instantly with
 `fastboot flash vendor /work/55g1/vendor_live.img` (stock backup preserved).
+
+### Turnip stability = viable daily driver (device-confirmed on the deployed vendor)
+
+With Turnip live as the system driver, swept compute loads to find the limit:
+8192x2048, 16384x2048, 16384x4096, 32768x4096 all complete (~52 GFLOPS); only the
+extreme 32768x8192 (268M invocations x 8192-iter loops) hits VK_ERROR_DEVICE_LOST.
+Crucially the DEVICE_LOST is GRACEFUL: KGSL resets the GPU (reset_count 25->31) and
+only the offending app dies - the DEVICE STAYS UP (boot_completed=1), unlike the
+AOP-OC hard SoC reset. Real games never approach 32768x8192-scale single dispatches,
+so Turnip is stable for actual use, with safe per-app GPU recovery on overload.
+Net: Turnip is a safe compatibility daily driver; the only measured cost is raw FMA
+compute throughput (~52 vs ~128), which does not represent game/emulator graphics.
