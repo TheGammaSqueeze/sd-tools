@@ -131,6 +131,23 @@ safe; writes may be re-latched by the EPSS or ignored, and a frequency above the
 CPRh voltage envelope can hang the CPU, so read first and bump conservatively.
 This sidesteps editing and re-signing XBL entirely.
 
+### On-device blocker (RG 55G1 GammaOS Next Lite GSI, verified)
+
+`/dev/mem` does not exist on this device (`CONFIG_DEVMEM` is not set in the GKI
+kernel), so `devmem`/`devmem2` both fail with "No such file or directory" and the
+`dump`/`write` paths above cannot reach the EPSS registers at all. This is not
+STRICT_DEVMEM (which would still allow MMIO); the char device is compiled out.
+
+The viable runtime route on this device is therefore a small kernel module that
+`ioremap`s the EPSS FREQ_LUT/VOLT_LUT and reads/writes it (the qcom-cpufreq-hw
+register model above). Module signing is off on this kernel (`CONFIG_MODULE_SIG`
+unset, `sig_enforce=0`, confirmed while patching gpucc-ravelin.ko), so an
+out-of-tree module built against the matching android12-5.10 GKI KMI
+(`5.10.209-android12-9`) will `insmod`. That build needs the GKI kernel source +
+Module.symvers for an exact vermagic match; until then CPU OC via the live LUT is
+blocked on this GSI. GPU OC does not share this blocker (its lever is the
+gpucc-ravelin.ko freq table, see docs/14).
+
 ## Update: the CPU clock plan is in uefi.elf ClockDxe (decompressed)
 
 Correction and progress on the "compressed loader" note above. xbl_s.melf is only

@@ -12,7 +12,10 @@
 #   VOLT_LUT[i]  = base + 0x200 + i*4     ; corner/vc in low bits
 #   up to ~40 rows; the table ends when the freq stops incrementing.
 #
-# Reads use devmem (busybox) or a devmem2 binary on the device; both need root.
+# Reads use devmem (busybox) or a devmem2 binary on the device; both need root
+# AND /dev/mem. NOTE: on the RG 55G1 GammaOS Next Lite GSI /dev/mem is compiled
+# out (CONFIG_DEVMEM unset), so both fail here; the runtime route on this device
+# needs a kernel module doing ioremap instead (module signing is off). See docs/07.
 # WRITES ARE EXPERIMENTAL: the EPSS may re-latch or ignore a runtime LUT change,
 # and a freq above the CPRh voltage envelope can hang the CPU. Read first.
 #
