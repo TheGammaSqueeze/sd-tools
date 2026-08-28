@@ -794,3 +794,35 @@ than full-off. So keeping UBWC even for sampled textures is still a net cost on 
 Adreno 613; UBWC is a loss across ALL resource types here, not just render targets.
 **Full UBWC-off remains optimal.** Reverted the surgical change; dw_noubwc stays the
 deployed best driver.
+
+## Exhaustive knob + CPU-pin sweep: noubwc is the only real lever (Wild Life 1440p)
+
+Chasing the last 4-7% to stock, swept the remaining rendering knobs and CPU state
+on the deployed dw_noubwc driver (GPU @1010, and this time CPU also pinned to max:
+big 2400 / little 1958.4, performance governor, thermal-engine stopped). All via
+the wrap TU_DEBUG injection, Wild Life baseline ~646-649:
+
+| config | Wild Life score | vs baseline |
+|--------|-----------------|-------------|
+| CPU+GPU pinned, default | 646 | baseline (CPU pin does nothing) |
+| forcebin | 649 | neutral |
+| nolrzfc (LRZ fast-clear off) | 648 | neutral |
+| flushall (diagnostic) | 588 | regression (confirms normal pipelining) |
+
+Combined with the earlier sweep (sysmem 606, nolrz 605 - both neutral on the base
+driver), the conclusion is firm: **no TU_DEBUG knob beyond noubwc moves real-title
+performance, and the workload is not CPU-bound** (pinning both CPU clusters to max
+changed nothing). The remaining ~4-7% vs stock is diffuse driver command-stream
+maturity, not a single addressable option.
+
+Also checked the obvious "just use newer Mesa" lever: the tree is already
+26.3.0-devel at upstream main from the day before (commit d245b965), i.e. bleeding
+edge - there is no newer Mesa to rebase onto. And restored source integrity: an
+earlier surgical-UBWC revert had `git checkout`-ed tu_util.cc and silently dropped
+the noubwc default from the SOURCE (the deployed .so still had it); re-applied
+turnip-noubwc-default.patch and confirmed a fresh rebuild reproduces the deployed
+driver byte-size (16316160) with TU_DEBUG=0x20 (NOUBWC) baked.
+
+Standing conclusion: dw_noubwc (multiview + fragment double-wave + UBWC-off) is the
+performance ceiling for Turnip on this GPU at ~93-96% of the stock blob in real
+titles; noubwc was the decisive lever, everything else is diffuse.
