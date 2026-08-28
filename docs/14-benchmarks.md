@@ -67,7 +67,22 @@ simultaneously). Filled in as the campaign proceeds; raw logs under
 
 | Run | GPU MHz | CPU big MHz | GPU GFLOPS | CPU big mops | MEM copy GB/s | max temp | stable? |
 |-----|---------|-------------|-----------|--------------|---------------|----------|---------|
-| baseline | 1010 | 2400 | 129.2 | 298.2 | 37.8 | 38 C | yes (stock) |
+| baseline (per-comp) | 1010 | 2400 | 129.1 | 298.8 | 35.8 | 40 C | yes (stock) |
+| baseline (combined all-max 90s) | 1010 | 2400 | - | held | held | 50.4 C | yes, 0 worker fails |
+
+Baseline re-captured device-confirmed on a28c0e0e: CPU big 298.8 mops @2400, CPU
+little 84.1 mops @1958.4, MEM read 15.1 / copy 35.8 GB/s @126 ns, GPU 129.1 GFLOPS
+@1010, fan 255 (~3900 rpm), thermal off. Combined all-max 90s held every clock at
+max, peak 50.4 C, no worker failures.
+
+**Runtime OC knobs are exhausted on this GSI.** GPU: capped at 1010 (silicon/ACD,
+see below). CPU: EPSS LUT is the only lever and needs `/dev/mem` which is compiled
+out (docs/07) -> needs an ioremap kernel module. MEM: there is NO CPU-DDR devfreq
+node (only ufshc + GPU busmon), so DDR frequency is entirely RPMh/AOP-firmware
+managed with no runtime handle -> a DDR OC needs editing the AOP/BCM vote table or
+DDR training in firmware (deep, EDL-recovery risk). Net: no component can be
+stably overclocked from userspace; further gains require a kernel module (CPU) or
+deep firmware reflash (GPU GMU-ACD, MEM AOP/DDR).
 | gpu in-place 1050 | 1050 | - | - | - | - | - | no (SoC reset under sustained load) |
 | gpu in-place 1100 | 1100 | - | - | - | - | - | no (SoC reset under sustained load) |
 
