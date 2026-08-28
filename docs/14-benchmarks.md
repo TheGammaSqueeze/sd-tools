@@ -665,3 +665,45 @@ bound. This is now the best Turnip build and stays deployed. Next levers toward
 full parity: the mediump path (Turnip still runs it fp32 - real games lean on
 mediump, where stock's 2x FP16 gives it 124 vs our 84), and reducing the fragment
 nop/scheduling overhead.
+
+## Correction + mediump/fp16 diagnosis (Turnip DOES run fp16)
+
+Earlier sections said Turnip "emits 0 half regs / never runs fp16." That was a
+misread of the shader stats: on a6xx `mergedregs` is on, so half registers are
+packed into the full-register count and the "0 half, 2 full" line does NOT mean
+fp32-only. Dumping the actual ir3 disassembly (IR3_SHADER_DEBUG=disasm -> logcat)
+for the explicit `float16_t` shader shows real half-precision instructions:
+
+```
+mov.u16u16 hr3.x, 0
+mad.f16 hr2.x, hr2.x, hr2.y, hr3.x
+mad.f16 hr3.x, hr3.x, hr3.y, hr2.x
+```
+
+So Turnip correctly lowers explicit fp16 to `mad.f16` on half registers. Clean
+precision matrix on the deployed dblwave driver vs stock (1920x1080, GPU @1010):
+
+| shader | dblwave Turnip | stock | dblwave vs stock |
+|--------|----------------|-------|------------------|
+| fp32 | 72.2 | 77.9 | 93% |
+| mediump (RelaxedPrecision) | 84.3 | 123.5 | 68% |
+| explicit float16_t (feature on) | 83.4 | 122.8 | 68% |
+
+Findings:
+- The fp32 fragment path is now ~93% of stock (the double-threadsize win).
+- fp16/mediump: Turnip runs it (`mad.f16`) but reaches only ~84 vs stock's ~123
+  (68%). It is NOT missing fp16 - the gap is that stock extracts ~1.5x more from
+  the fp16 ALU on this dependency-bound kernel. The Turnip fp16 mads are SCALAR in
+  a fully-coupled a/b/c/d dependency chain (`mad.f16 hr2.x, ...` with nop1/nop3
+  stalls); stock evidently packs/vectorizes fp16 (2 lanes per ALU slot) or hides
+  the shorter fp16 latency better. Vectorizing a coupled scalar fp16 chain is a
+  deep ir3 scheduling problem.
+- Also noted: the RelaxedPrecision (`mediump` in #version 450) path did NOT lower
+  to 16-bit in NIR (all `32` ALU ops) despite `mediump_16bit_alu=true`, whereas
+  explicit `float16_t` did - yet both land at ~84, so on this coupled kernel the
+  precision of the emitted math is not the throughput limiter; wave-level latency
+  hiding is (which is why the double-threadsize change lifted both from 42 to 84).
+
+Net: fp32 fragment is near parity (93%); the last fragment gap is fp16 ALU
+utilization on dependency-bound math, which needs ir3 fp16-vectorization/scheduling
+work. dblwave remains the best/deployed driver.
