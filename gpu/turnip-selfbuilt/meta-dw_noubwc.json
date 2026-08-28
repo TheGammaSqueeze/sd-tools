@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "name": "Turnip Adreno 613 dw_noubwc (multiview + FS-double-wave + UBWC-off, RG 55G1)",
+  "description": "Best self-built Mesa Turnip for the Adreno 613. Three GammaOS changes: (1) multiview forced -> VK 1.3; (2) fragment shaders opt into 128-wide waves (fp32 fragment 42->72 GFLOPS); (3) UBWC framebuffer/texture compression disabled by default because it is a measured net loss on gen6_3 (real-title +7%). Brings Turnip to 93-96% of the stock Adreno blob in 3DMark Wild Life (649 vs 700) and Wild Life Extreme (167 vs 174).",
+  "author": "TheGammaSqueeze",
+  "packageVersion": "3",
+  "vendor": "Mesa",
+  "driverVersion": "Vulkan 1.3 (Mesa 26.3.0-devel)",
+  "minApi": 31,
+  "libraryName": "vulkan.turnip.dw_noubwc.so",
+  "sourceChanges": [
+    "tu_device.cc: tu_has_multiview() returns true (VK 1.1+)",
+    "ir3.c: fragment shaders forced to double-threadsize when branchstack/regfile/wave-count safe",
+    "tu_util.cc: TU_DEBUG_NOUBWC on by default (UBWC net loss on Adreno 613); GAMMA_UBWC env re-enables"
+  ],
+  "verified": "RG 55G1 (a28c0e0e), GPU @1010, flashed: 3DMark Wild Life 649 (stock 700, 92.7%), Wild Life Extreme 167 (stock 174, 96%), correct render"
+}

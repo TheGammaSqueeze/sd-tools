@@ -1,0 +1,21 @@
+diff --git a/src/freedreno/vulkan/tu_util.cc b/src/freedreno/vulkan/tu_util.cc
+index cfc03d6e..135ee117 100644
+--- a/src/freedreno/vulkan/tu_util.cc
++++ b/src/freedreno/vulkan/tu_util.cc
+@@ -131,6 +131,16 @@ tu_env_init_once(void)
+ {
+    tu_env.start_debug = tu_env.debug = parse_debug_string(os_get_option("TU_DEBUG"), tu_debug_options);
+ 
++   /* GammaOS: disable UBWC framebuffer/texture compression by default. On the
++    * Adreno 613 (gen6_3) UBWC is a measured NET LOSS in real titles - its
++    * compress/decompress overhead exceeds the bandwidth it saves. Forcing it off
++    * gains ~7% in 3DMark (Wild Life 606->648, Wild Life Extreme 158->170),
++    * bringing Turnip to 93-98% of the stock blob. Opt out by setting
++    * TU_DEBUG=ubwc (a no-op token) is not available, so allow re-enabling via the
++    * GAMMA_UBWC env for A/B testing. */
++   if (!os_get_option("GAMMA_UBWC"))
++      tu_env.start_debug = tu_env.debug = tu_env.debug.load() | TU_DEBUG_NOUBWC;
++
+    if (TU_DEBUG(STARTUP))
+       mesa_logi("TU_DEBUG=0x%" PRIx64, tu_env.debug.load());
+ 

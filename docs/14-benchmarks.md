@@ -730,3 +730,48 @@ that will matter for genuinely fragment-ALU-heavy content (heavy post-processing
 emulator upscaling/CRT shaders, compute-in-fragment), but mainstream game
 benchmarks do not expose it. Turnip real-world sits at ~86-90% of stock across
 WLE (4K) and Wild Life (1440p) regardless. dblwave remains the deployed best.
+
+## BIG WIN: disabling UBWC brings Turnip to 93-98% of stock in real titles
+
+Pivoted from ALU microbenchmarks (which do not move real titles) to the actual
+real-frame bottleneck, using a wrapper-script to inject TU_DEBUG into the 3DMark
+zygote app without reflashing: `setprop wrap.<pkg> "/system/bin/sh /data/local/tmp/tuwrap.sh"`
+where tuwrap.sh does `export TU_DEBUG=<opt>; exec "$@"` (verified via the app's
+/proc/PID/environ and the Turnip startup log). Swept rendering knobs on the
+deployed dblwave driver, re-running Wild Life (1440p, baseline 606-607):
+
+| TU_DEBUG knob | Wild Life score | vs default |
+|---------------|-----------------|-----------|
+| (default) | 606-607 | baseline |
+| sysmem (bypass GMEM tiling) | 606 | ~0% (tiling is NOT the cost) |
+| nolrz (disable LRZ depth reject) | 605 | ~0% |
+| **noubwc (disable UBWC compression)** | **648** | **+6.9%** |
+
+UBWC (the Adreno bandwidth/framebuffer compression) turned out to be a NET LOSS on
+this Adreno 613 (gen6_3): its compress/decompress overhead exceeds the bandwidth it
+saves, so turning it OFF is faster. Confirmed reproducible and on 4K too:
+
+| test | UBWC on (default) | UBWC off (noubwc) | gain | vs stock |
+|------|-------------------|-------------------|------|----------|
+| Wild Life (1440p) | 606/607 | 648 (x2, stable) | +6.9% | 92.6% (was 86.7%) |
+| Wild Life Extreme (4K) | 158 | 170 | +7.6% | 97.7% (was 90.8%) |
+
+This is the real-world lever the ALU work could not provide: **Turnip goes from
+~87-90% to 93-98% of the stock blob in real games** by dropping UBWC. Baked it in as
+a driver default (`src/freedreno/vulkan/tu_util.cc`: OR `TU_DEBUG_NOUBWC` into the
+parsed flags at init unless the `GAMMA_UBWC` env is set for A/B), rebuilt, and
+flashed. Startup log confirms `TU_DEBUG=0x20` (NOUBWC) is on by default.
+
+Validated the flashed baked-in default (no wrap, driver default only): Wild Life
+**649**, Wild Life Extreme **167** - matching the injected result. Final standing of
+the best Turnip build (multiview + FS-double-wave + noubwc-default,
+`gpu/turnip-selfbuilt/vulkan.turnip.dw_noubwc.so`):
+
+| test | orig turnip | dblwave | dw_noubwc (NEW) | stock | dw_noubwc vs stock |
+|------|-------------|---------|-----------------|-------|--------------------|
+| Wild Life (1440p) | 600 | 607 | 649 | 700 | 92.7% |
+| Wild Life Extreme (4K) | 156 | 158 | 167 | 174 | 96.0% |
+
+Net: Turnip is now within 4-7% of the stock blob in real 3DMark titles (was
+10-14%). Deployed as vendor_turnip_noubwc.img. The UBWC-off default is the single
+biggest real-world lever found. Re-enable UBWC for A/B with the GAMMA_UBWC env.
