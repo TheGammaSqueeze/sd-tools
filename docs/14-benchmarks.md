@@ -1191,8 +1191,10 @@ stock blob (127.7).** It fires only on collapsible constant-coefficient chains
 (2.4x there), and is neutral on the graphics microbench and decoupled compute
 (nothing to collapse), exactly as the deep dive predicted. Crucially, unlike the
 delay-slot experiment it renders CORRECTLY: 3DMark Wild Life Extreme with reassoc
-produced a clean frame (see the render) and scored 174 (vs 170 off; at/above the
-dw_noubwc 167-170 and equal to stock 174 - a real render, not corruption).
+produced a clean frame (not corruption). A paired A/B on WLE (reassoc off vs on,
+same flashed driver) measured 170/171 off vs 170 on = NEUTRAL - an earlier 174 was
+run variance. So reassoc does not change real-title graphics (games lack long
+constant-coefficient chains); the win is purely on collapsible compute.
 
 So the long-standing "2.45x compute regression" is now CLOSED at the source: with
 GAMMA_FASTMATH, Turnip matches stock on compute. Real-title graphics is
