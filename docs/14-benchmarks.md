@@ -622,3 +622,46 @@ both are genuine upstream-compiler problems, not build flags or simple heuristic
 Real-world (WLE) Turnip is already ~88% of stock; raw synthetic-ALU parity is a
 deep ir3 effort. Iteration continues. New bench tool: `gfxbench_f16feat.c` (fp16
 device-feature-enabled graphics microbench).
+
+## WIN: fragment double-threadsize brings Turnip to ~93% of stock on fragment ALU
+
+Root-caused the real fp32 fragment gap and fixed it. ir3 shader stats showed the
+fragment shader runs SINGLE-threadsize (64-wide) with `0 double_threadsize`, while
+the workload is a latency-bound ALU chain that benefits from more in-flight waves.
+The upstream `ir3_should_double_threadsize` heuristic (ir3.c) is too conservative
+for the small Adreno 613 regfile: it keeps low-register fp32 fragment shaders in
+64-wide mode. Forcing double (128-wide) waves for the fragment stage - gated so it
+is provably safe (branchstack allows the doubled thread count, doubled register
+pressure fits the regfile, and it still leaves >= 8 waves for latency hiding) -
+lifts fragment throughput massively (device-confirmed, GPU @1010, bind-mount):
+
+| shader | turnip-orig | turnip + FS-double-wave | stock | new vs stock |
+|--------|-------------|-------------------------|-------|--------------|
+| gfxbench fp32 | 42.6 | **71.6** | 76.7 | 93% |
+| gfxbench mediump | 42.6 | **84.2** | 124.4 | 68% |
+| gpubench compute | 51.9 | 52.1 (unchanged) | 124.8 | - |
+
+fp32 fragment goes 42 -> 72 (1.68x), reaching ~93% of the stock blob; mediump goes
+42 -> 84 (1.98x). Compute is untouched (different stage). The disasm confirms the
+FS now compiles with `1 double_threadsize` (8 max_waves). Patch:
+`gpu/turnip-selfbuilt/turnip-fs-double-threadsize.patch` (ir3.c). Driver:
+`gpu/turnip-selfbuilt/vulkan.turnip.dblwave.so` (also carries the multiview VK-1.3
+change). Baked into `/work/55g1/vendor_turnip_dw.img` and flashed.
+
+Real-title check (3DMark Wild Life Extreme, flashed, GPU @1010):
+
+| driver | WLE score | avg FPS |
+|--------|-----------|---------|
+| stock | 174 | 1.05 |
+| turnip-orig | 156 | 0.94 |
+| turnip + FS-double-wave | **158** | 0.95 |
+
+WLE only moved +1.3% (156 -> 158) despite the ~1.7x microbench fragment gain,
+because WLE at 3840x2160 is bandwidth/texture/geometry-bound, not fragment-ALU
+bound - so the ALU headroom is mostly latent there. But the change is a strict
+improvement (big win on ALU-bound fragment work, no compute regression, correct
+rendering, valid WLE run) and helps shader-heavy content that IS fragment-ALU
+bound. This is now the best Turnip build and stays deployed. Next levers toward
+full parity: the mediump path (Turnip still runs it fp32 - real games lean on
+mediump, where stock's 2x FP16 gives it 124 vs our 84), and reducing the fragment
+nop/scheduling overhead.

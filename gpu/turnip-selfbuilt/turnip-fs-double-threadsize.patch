@@ -1,0 +1,25 @@
+diff --git a/src/freedreno/ir3/ir3.c b/src/freedreno/ir3/ir3.c
+index 46d0ab28..9ca00047 100644
+--- a/src/freedreno/ir3/ir3.c
++++ b/src/freedreno/ir3/ir3.c
+@@ -591,6 +591,20 @@ ir3_collect_info(struct ir3_shader_variant *v)
+       (compiler->gen >= 6 ? ((info->max_half_reg + 2) / 2) : 0);
+ 
+    info->double_threadsize = ir3_should_double_threadsize(v, regs_count);
++   /* GammaOS: the upstream heuristic leaves latency-bound, low-register fragment
++    * shaders in single-wave (64-wide) mode on the small Adreno 613 regfile, which
++    * costs ~1.7x on fragment ALU throughput vs the stock blob (42 -> 72 GFLOPS
++    * measured). Opt fragment shaders into 128-wide waves when it is provably safe:
++    * the branchstack must allow the doubled thread count (correctness), the
++    * doubled register pressure must fit the regfile, and it must still leave >= 8
++    * waves in flight for latency hiding (the documented sweet spot). */
++   if (v->type == MESA_SHADER_FRAGMENT && !info->double_threadsize &&
++       MIN2(v->branchstack, compiler->info->threadsize_base * 2) <=
++          compiler->max_branchstack &&
++       regs_count * 2 <= compiler->reg_size_vec4 &&
++       ir3_get_reg_dependent_max_waves(compiler, regs_count, true) >= 8) {
++      info->double_threadsize = true;
++   }
+ 
+    /* Limit occupancy if necessary by increasing max_reg. */
+    unsigned min_reg_count = ir3_get_min_reg_count(v, info->double_threadsize);

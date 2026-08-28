@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "name": "Turnip Adreno 613 FS-double-wave + multiview (RG 55G1, Android 12 / API 31)",
+  "description": "Self-built Mesa Turnip (Mesa 26.3.0-devel) with two GammaOS changes: (1) multiview forced so apiVersion reports VK 1.3 (runs 3DMark Wild Life Extreme etc.); (2) fragment shaders opt into 128-wide (double-threadsize) waves when provably safe, recovering ~1.7x fragment ALU throughput on the small Adreno 613 regfile (gfxbench fp32 42->72, ~93% of the stock blob; mediump 42->84). Compute unchanged.",
+  "author": "TheGammaSqueeze",
+  "packageVersion": "2",
+  "vendor": "Mesa",
+  "driverVersion": "Vulkan 1.3 (Mesa 26.3.0-devel)",
+  "minApi": 31,
+  "libraryName": "vulkan.turnip.dblwave.so",
+  "sourceChanges": [
+    "src/freedreno/vulkan/tu_device.cc: tu_has_multiview() returns true (VK 1.1+ advertised)",
+    "src/freedreno/ir3/ir3.c: fragment shaders forced to double-threadsize when branchstack/regfile/wave-count safe"
+  ],
+  "verified": "RG 55G1 (a28c0e0e): gfxbench fp32 71.6 / mediump 84.2 / compute 52.1; disasm shows 1 double_threadsize; flashed to /vendor and 3DMark Wild Life Extreme = 158 (vs 156 orig turnip, 174 stock), correct render"
+}
