@@ -826,3 +826,28 @@ driver byte-size (16316160) with TU_DEBUG=0x20 (NOUBWC) baked.
 Standing conclusion: dw_noubwc (multiview + fragment double-wave + UBWC-off) is the
 performance ceiling for Turnip on this GPU at ~93-96% of the stock blob in real
 titles; noubwc was the decisive lever, everything else is diffuse.
+
+## fp16/mediump: Turnip DOES vectorize (2.27x), gap is dependency-chain scheduling
+
+Investigated the last ALU headroom - mediump/fp16, where the coupled microbench put
+Turnip at 84 vs stock 124 (68%). Built a DECOUPLED microbench (8 independent
+accumulators instead of a coupled a/b/c/d chain: gfxbench_mpd mediump /
+gfxbench_fpd fp32) to see the achievable fp16 ceiling when the compiler can pack
+lanes. Device-confirmed @1010 (bind-mount):
+
+| driver | decoupled fp32 | decoupled mediump | fp16 speedup | mediump vs stock |
+|--------|----------------|-------------------|--------------|------------------|
+| turnip | 31.9 | 72.3 | 2.27x | 86% |
+| stock | 29.2 | 84.0 | 2.88x | baseline |
+
+Key result: **Turnip's fp16 packing works** - decoupled mediump is 2.27x its fp32,
+i.e. it IS using the a6xx half-rate ALU, reaching 86% of stock (vs the worst-case
+68% on the fully-coupled chain). So the mediump deficit is not "Turnip ignores
+fp16" (it does not) but the narrower gap of scheduling a serial fp16 dependency
+chain slightly less tightly than the stock blob. Since real titles are not
+ALU-bound (proven: fragment double-threadsize barely moved them), this last ~14%
+ALU-scheduling gap has negligible real-world payoff. No further ALU lever worth
+pursuing.
+
+Additional cycle-saving knob A/B on Wild Life (noubwc proved this class exists):
+3d_load 636 (slightly worse) and noconcurrentresolves 650 - both neutral vs the 646-649 baseline. The GMEM load/store/resolve path is not a lever here either.
