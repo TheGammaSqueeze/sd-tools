@@ -775,3 +775,22 @@ the best Turnip build (multiview + FS-double-wave + noubwc-default,
 Net: Turnip is now within 4-7% of the stock blob in real 3DMark titles (was
 10-14%). Deployed as vendor_turnip_noubwc.img. The UBWC-off default is the single
 biggest real-world lever found. Re-enable UBWC for A/B with the GAMMA_UBWC env.
+
+## Surgical UBWC (textures-on, color-targets-off) - negative, full-off is optimal
+
+Tested whether a surgical UBWC policy could beat the full UBWC-off default: kept
+UBWC ENABLED for pure sampled textures (cheap read decompression) but disabled it
+only for color render targets (the write/compress-heavy path), via a usage-flag
+gate in `ubwc_possible()` (tu_image.cc). Flashed and compared on real titles:
+
+| driver | Wild Life (1440p) | WLE (4K) |
+|--------|-------------------|----------|
+| dblwave (UBWC fully ON) | 607 | 158 |
+| surgical (UBWC on textures only) | 631 | 162 |
+| **full UBWC-off (dw_noubwc)** | **649** | **167** |
+
+The surgical variant lands BETWEEN the two - better than full-UBWC-on but worse
+than full-off. So keeping UBWC even for sampled textures is still a net cost on the
+Adreno 613; UBWC is a loss across ALL resource types here, not just render targets.
+**Full UBWC-off remains optimal.** Reverted the surgical change; dw_noubwc stays the
+deployed best driver.
