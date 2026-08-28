@@ -329,3 +329,28 @@ not recommended for performance on this unit. Turnip's value here would be
 compatibility/features/newer-Vulkan (1.4) for specific apps, not raw throughput.
 The bind-mount is fully reversible (umount); stock preserved at
 gpu/stock-qualcomm/vulkan.adreno.so.
+
+### Driver-variation sweep + display viability (device-confirmed)
+
+Extended the driver comparison (all via the reversible bind-mount, GPU @1010):
+- **Stock Adreno remains the compute leader (127.7 GFLOPS).** No alternative beat it.
+- **Self-built Turnip = 52.1 GFLOPS**, unchanged by ir3/TU env knobs
+  (IR3_SHADER_DEBUG=noopt, TU_DEBUG=noconform/forcebin) - the 2.45x gap is the ir3
+  compute compiler, inherent, not a build flag. The build is already
+  `-Dbuildtype=release` for the correct GPU (Turnip auto-detects Adreno 613).
+- **Anbernic-shipped Turnip** (gpu/turnip-anbernic) fails to init under gpubench
+  (no Vulkan device enumerated) - not usable here.
+- **Turnip IS display-safe**: bind-mounted system-wide + restarted SurfaceFlinger,
+  the UI rendered at full 1080x1920 with no SF/vulkan errors. This is because SF
+  composites via **GLES** (libGLESv2_adreno), not Vulkan - a Vulkan-driver swap
+  only affects Vulkan apps (games/emulators), never the base UI. (Note: SF holds
+  the driver open, so a bind-mount needs `umount -l` + SF restart to revert.)
+
+Verdict: **for raw performance the stock Adreno driver is optimal** and should stay
+the default; a Turnip swap regresses compute and adds DEVICE_LOST on heavy loads.
+Turnip's only value here is compatibility / newer Vulkan (1.4) for specific
+titles - a compatibility choice, not a performance one. Turnip is kept in the tree
+(gpu/turnip-selfbuilt) and can be deployed system-wide via
+scripts/swap_vulkan_turnip.sh (bakes it into the vendor image at
+/vendor/lib64/hw/vulkan.adreno.so) if a specific app needs it; stock is preserved
+at gpu/stock-qualcomm/vulkan.adreno.so for instant revert.
