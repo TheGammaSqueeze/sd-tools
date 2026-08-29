@@ -1627,3 +1627,11 @@ conversion in compute) IF the game's compute is fp16-safe. It is NOT deployable 
 experimental GameNative variant: if MGS4 renders clean with it, keep it for the speed; if
 it corrupts, use the regular GameNative-flushall build. Deployed /vendor driver unchanged
 (selective-fp16 ULTRA 16338592); env-gated Mesa source restored (all GAMMA_* opt-in).
+
+## Periodic regression check (deployed selective-fp16 ULTRA): stable, no regression
+
+3DMark on the deployed driver, fan max, GPU pinned, both screenshot-verified rendering
+clean (no black textures): Wild Life 649 (3.89 fps), Wild Life Extreme 176 (1.06 fps) -
+matching the prior baseline (WL 650 / WLE 179) within run-to-run noise. Shell suite also
+stable: gpubench 52.4, gamebench 14.0, gfxbench 60.3. No regression; the shipped driver
+holds its numbers.
