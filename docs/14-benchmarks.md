@@ -1614,3 +1614,16 @@ lever. NOTE this gap only bites pure fp16-ALU-bound fragment shaders (rare in re
 where texture/bandwidth dominates); it does not affect the shipped driver's real-title
 scores. Perf-lever inventory is now largely closed; the loop's remaining value is
 GameNative/emulator compatibility tuning and keeping artifacts/docs current.
+
+## Experimental GameNative maxfp16 variant (compute fp16 for RPCS3/DXVK)
+
+Built and shipped an EXPERIMENTAL GameNative driver (gamenative_maxfp16.so 16338872,
+zip GameNative-maxfp16-EXPERIMENTAL-v1) = ULTRA (selective fragment fp16) + flushall +
+FORCED fp16 on COMPUTE shaders (GAMMA_FP16_COMPUTE default-on in this build only). The
+compute fp16 lever is +141% (gpubench 52.4 -> 126.2, hits the a6xx fp16 peak) and could
+be a large win for emulators that lean on compute (RPCS3/DXVK do texture decode + format
+conversion in compute) IF the game's compute is fp16-safe. It is NOT deployable generally
+- it corrupts fp32-dependent compute (black-bands 3DMark WLE). So it stays a user-A/B-only
+experimental GameNative variant: if MGS4 renders clean with it, keep it for the speed; if
+it corrupts, use the regular GameNative-flushall build. Deployed /vendor driver unchanged
+(selective-fp16 ULTRA 16338592); env-gated Mesa source restored (all GAMMA_* opt-in).
