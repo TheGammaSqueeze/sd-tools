@@ -1507,3 +1507,24 @@ coherency corner these correct-in-all-modes benches don't expose), not a speed o
 sysmem is faster where it renders correctly. Shipped a GameNative sysmem variant
 (gamenative_sysmem.so 16338920, zip GameNative-sysmem-v1) alongside the flushall one so
 MGS4 can be A/B'd; sysmem is the better default if it renders clean.
+
+## Selective fp16 real-title benefit is workload-dependent (3DMark pass)
+
+Fresh 3DMark on the deployed selective-fp16 ULTRA (16338592), fan max, GPU pinned, both
+screenshot-verified rendering clean (no black textures):
+- Wild Life (1440p):  650  (3.89 fps)
+- Wild Life Extreme (4K): 179 (1.07 fps)
+Compared to prior baselines: blanket-fp16 ULTRA WL 719 / WLE 184-186; aggressive (no
+fp16) WL 649 / WLE 167; stock blob WL 700 / WLE 174. So:
+- On WLE (4K, fragment-ALU-bound) selective fp16 = 179, i.e. +7% over aggressive 167 and
+  above stock 174 - it keeps most of the fp16 gain (blanket was 184).
+- On Wild Life (1440p, texture-bound) selective fp16 = 650 ~= aggressive 649, i.e. the
+  entire ~70pt (10%) fp16 win from blanket-fp16 (719) came from the texture-coordinate
+  math that selective now protects. Here we sit below stock (650 vs 700).
+- On gamebench (pure ALU, no textures) selective = blanket = 14.0 (full gain).
+So selective fp16 recovers correctness with full benefit on ALU/emulator-bound content
+(MGS4, WLE, gamebench) and near-zero benefit on texture-bound content (Wild Life). The
+fp16 speed and the black textures are the same tex-coord math - can't have both blindly.
+NEXT LEVER: narrow the tex-coord protection (protect only large/atlas-texture UVs, or
+only the final UV op rather than the whole backward slice) to recover some Wild Life fp16
+without reintroducing black textures - measure black-texture risk via screenshot diff.
