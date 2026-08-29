@@ -1547,3 +1547,19 @@ independent scalar fp16 chains as aggressively as the blob. Candidate approaches
 tick): teach ir3_rpt/ir3_sched to co-issue independent same-op fp16 scalars into vec2, or
 rebase to newer Mesa main (may have improved a6xx fp16 packing) and re-measure. Prize if
 closed: up to ~1.5x on fp16-bound fragment work (gamebench, WLE, and DXVK/RPCS3 shaders).
+
+## NEGATIVE: NIR-level fp16 vectorization does not close the packing gap
+
+Tested the obvious first attempt at the fp16 packing win: a GAMMA_FP16_PACK-gated
+nir_opt_vectorize with a callback returning width 2 for 16-bit float ALU, placed as the
+last NIR pass in ir3_optimize_loop (after the opt-loop's nir_lower_alu_to_scalar so it
+would not be undone). Result: ZERO change - gfxbench_f16 85.1 with and without the pass,
+gamebench (forced fp16) 14.0 both. Why: the fp16-heavy shaders are scalar DEPENDENT
+chains, not batches of independent same-op scalars. gfxbench_f16's hot loop is
+`a=a*b+c; b=b*c+d; c=c*d+a; d=d*a+b;` - four cross-dependent fp16 mads; there is nothing
+for nir_opt_vectorize to pair (different operands, RAW dependencies). So the stock blob's
+126-vs-85 lead is NOT NIR vectorizable - it comes from the ir3 BACKEND: how it schedules
+/ dual-issues / co-issues semi-independent scalar fp16 mads and allocates half-registers.
+Confirms the packing lever lives in ir3_sched / ir3_ra / ir3_rpt (co-issue independent
+scalar fp16 into a half-reg pair), a much deeper change than any NIR pass. Reverted the
+no-op pass (source clean). Deployed driver unchanged (selective-fp16 ULTRA 16338592).
