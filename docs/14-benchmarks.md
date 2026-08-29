@@ -1663,3 +1663,24 @@ with sysmem (rtbench sysmem 5709 vs sysmem+noconform 5701). So the conformance w
 carry no meaningful overhead on real workloads, and disabling them only risks subtle
 rendering bugs on the content they guard - not worth adopting for <1%. Added to the
 tested-neutral list. Deployed driver + benches unchanged.
+
+## CORRECTION: flushall costs -4% to -10% on real titles (not ~free); prefer sysmem
+
+Validated the GameNative-flushall variant (ULTRA + baked flushall, 16338888) on real
+3DMark, screenshot-verified rendering clean:
+- Wild Life:  585 (3.51 fps)  vs deployed GMEM 649  (-9.9%)
+- Wild Life Extreme: 172 (1.04 fps) vs GMEM 179 (-3.9%)
+This CORRECTS the earlier single-pass microbench reading (gfxbench: flushall == GMEM
+"free"). On a real multi-pass title the per-submit cache flush is expensive: -10% on Wild
+Life (many submits per frame), -4% on the more GPU-bound WLE. Full real-title ranking of
+the GameNative options now measured:
+- GMEM (deployed):  WL 649 / WLE 179
+- sysmem:           WL 637 / WLE 176  (-2%)
+- flushall:         WL 585 / WLE 172  (-10% / -4%)
+So on native content GMEM > sysmem > flushall, and flushall is by far the most expensive.
+For emulators, sysmem (-2%) is the much cheaper coherency option than flushall (-10%);
+flushall should only be used if a title needs its stronger per-submit flush that sysmem's
+tiling-bypass does not provide. Recommendation for GameNative: try sysmem first, fall back
+to flushall only if sysmem still corrupts. Reverted /vendor to selective-fp16 ULTRA
+(16338592). Lesson: microbenches under-report flushall's cost - real multi-submit titles
+are the true signal.
