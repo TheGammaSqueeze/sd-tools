@@ -31,9 +31,9 @@ If you see any fp16 artifact even on v4, fall back to AGGRESSIVE (no fp16, ~10% 
 - UBWC framebuffer compression disabled (a measured net loss on this GPU);
 - constant-coefficient FMA-chain reassociation (matches the stock compiler, brings
   compute from 52 to stock-parity 127-129 GFLOPS);
-- forced fp16 fragment math (large win on realistic fragment shaders; lossy);
-- constant-integer `pow(x, N)` (specular exponents) lowered to a repeated-squaring
-  fmul chain instead of the fp32-only exp2/log2 SFU pair (+20% on fp16 lighting).
+- **selective** forced fp16 fragment math (large win on realistic fragment shaders;
+  lossy) - the texture-coordinate and depth chains are kept fp32 so textures do not
+  go black, unlike the older blanket-fp16 build.
 
 ## Test results (RG 55G1, Adreno 613 @ 1010 MHz, device-validated)
 
@@ -67,7 +67,7 @@ did NOT protect those coords - which is what made textures go black. dw_noubwc r
 > **Not ULTRA v3.** v3 added a constant-integer `pow()` -> repeated-squaring pass that
 > scored higher on the lighting microbench (16.8 GFLOPS, +110% vs fp32) but caused
 > flickering / black textures on real games (the fp16 squaring overflows to inf/NaN for
-> bases >1). It was rolled back; the shipped driver is v1/v2.
+> bases >1). It was rolled back; the shipped driver is ULTRA-v4 (selective fp16).
 
 fp16 is lossy (reduced precision); most content renders correctly, but a title that
 shows banding can opt out per-effect with `GAMMA_NOFP16` (fp16) / `GAMMA_NOFASTMATH`
