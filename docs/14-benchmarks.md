@@ -1652,3 +1652,14 @@ fsat form yields nothing even in the microbench, the entire pow-squaring avenue 
 CLOSED - not worth re-wiring a contract-enable path for a lever that cannot ship. Source
 reverted to the committed state (bare 'a', gamma_powi opt-in, unused). Deployed driver and
 all shell benches unchanged (gamebench 14.0, gpubench 52.4).
+
+## NEGATIVE: TU_DEBUG=noconform is negligible (~within noise), not worth the risk
+
+Tested noconform (disable Turnip conformance workarounds - the theory being games do not
+hit the conformance edge cases the workarounds guard) on the deployed driver, GPU pinned:
+gfxbench 60.1->60.3, rtbench(512) 5663->5702 (+0.7%), gamebench 14.0->14.0. Best case
++0.7% on the RT pattern, everything else within run-to-run noise. It also does NOT stack
+with sysmem (rtbench sysmem 5709 vs sysmem+noconform 5701). So the conformance workarounds
+carry no meaningful overhead on real workloads, and disabling them only risks subtle
+rendering bugs on the content they guard - not worth adopting for <1%. Added to the
+tested-neutral list. Deployed driver + benches unchanged.
