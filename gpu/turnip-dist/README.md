@@ -32,32 +32,37 @@ in real games, so it was rolled back - the deployed GammaOS build ships the v1 d
 
 ## Test results (RG 55G1, Adreno 613 @ 1010 MHz, device-validated)
 
+Numbers are for the recommended **ULTRA v1/v2** driver (fp16-only, 16330280).
 3DMark (real titles), higher is better:
 
-| Test | Stock Adreno | dw_noubwc (v1) | ULTRA v3 |
-|------|-------------:|---------------:|---------:|
-| Wild Life (1440p)          | 700 | 649 | **723** |
-| Wild Life Extreme (4K)     | 174 | 167 | **186** |
+| Test | Stock Adreno | dw_noubwc (v1) | ULTRA (v1/v2) |
+|------|-------------:|---------------:|--------------:|
+| Wild Life (1440p)          | 700 | 649 | **719** |
+| Wild Life Extreme (4K)     | 174 | 167 | **184** |
 
 Microbenchmarks (GFLOPS, GPU pinned):
 
-| Bench | Baseline | ULTRA v3 | Delta |
-|-------|---------:|---------:|------:|
-| Compute (gpubench)             | 127 (stock)         | 129  | stock parity (reassoc) |
-| Realistic lighting (gamebench) | 8.0 (Turnip fp32)   | 16.8 | **+110%** (fp16 + pow-squaring) |
-| `pow(x,32)` lowering, of which | 14.0 (fp16, exp2/log2) | 16.8 | **+20%** from repeated squaring |
+| Bench | Baseline | ULTRA (v1/v2) | Delta |
+|-------|---------:|--------------:|------:|
+| Compute (gpubench)             | 127 (stock)       | 129  | stock parity (reassoc) |
+| Realistic lighting (gamebench) | 8.0 (Turnip fp32) | 14.0 | **+75%** (forced fp16) |
 
 Compute is compared against the stock Adreno blob (reassociation reaches parity);
-the fragment rows are vs the same Turnip build with the optimization disabled
-(`GAMMA_NOFP16` / `GAMMA_NOFASTMATH`), isolating each lever.
+the lighting row is vs the same Turnip build with fp16 disabled (`GAMMA_NOFP16`),
+isolating the fp16 lever.
 
-ULTRA v3 renders 3DMark Wild Life and Wild Life Extreme cleanly (screenshot-verified:
-no banding, no black-frame corruption). dw_noubwc (v1) reaches ~93-96% of stock while
-adding the modern-Vulkan surface; ULTRA v3 beats stock on every real title measured.
+ULTRA v1/v2 renders 3DMark Wild Life and Wild Life Extreme cleanly (screenshot-verified:
+no banding, no black-frame corruption) and beats stock on every real title measured;
+dw_noubwc (v1) reaches ~93-96% of stock while adding the modern-Vulkan surface.
+
+> **Not ULTRA v3.** v3 added a constant-integer `pow()` -> repeated-squaring pass that
+> scored higher on the lighting microbench (16.8 GFLOPS, +110% vs fp32) but caused
+> flickering / black textures on real games (the fp16 squaring overflows to inf/NaN for
+> bases >1). It was rolled back; the shipped driver is v1/v2.
 
 fp16 is lossy (reduced precision); most content renders correctly, but a title that
 shows banding can opt out per-effect with `GAMMA_NOFP16` (fp16) / `GAMMA_NOFASTMATH`
-(reassociation + pow-squaring).
+(reassociation).
 
 ## How to use
 In Winlator (or GameHub / any AdrenoTools-based loader): Contents / Video / Graphics
