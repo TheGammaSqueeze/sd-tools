@@ -1471,3 +1471,21 @@ record. Source: the pow-squaring nir pattern is now gated on a new gamma_powi op
 ULTRA rebuild no longer includes it. To revisit safely it needs a base<=1 guard (only
 lower pow when the base is provably in [0,1], e.g. saturated dot products) before it can
 go back into ULTRA. Device-verified: pre-pow ULTRA boots and renders clean.
+
+## sysmem/flushall are free on single-pass renders (cost is emulator-only)
+
+Cron tick 2026-08-29. Measured the TU_DEBUG=sysmem and =flushall cache/tiling
+workarounds (the community "A12 fix" levers, now GAMMA_SYSMEM/GAMMA_FLUSHALL opt-ins)
+on the deployed selective-fp16 ULTRA (16338592), GPU pinned:
+- gfxbench 1080p single-pass render: default(GMEM) 60.2, sysmem 60.3, flushall 60.2
+  GFLOPS - identical within noise. mpix/s 14.7 all three.
+So on a single render pass with one fullscreen triangle these flags cost ~0. Their real
+cost (GMEM tile store/load avoided, or per-submit cache flush added) only appears with
+many small passes / render-to-texture / feedback loops - i.e. exactly the DXVK/VKD3D/
+RPCS3 emulator workloads they fix. Implication: baking flushall into the GameNative
+driver has ~zero downside on simple content, and choosing sysmem-vs-flushall-vs-neither
+for MGS4 must be decided by a real in-game A/B (microbenches can't distinguish them). A
+multi-pass render-to-texture microbench would measure it offline (next lever).
+Also recorded this tick (deployed selective-fp16 ULTRA, GPU@1010): gpubench plain compute
+52.4 (reassoc's 127 is on the constant-coefficient FMA variant, not plain compute),
+gamebench 14.0, gfxbench 60.2, gb_exp 12.5, gb_trig 9.8, gb_sqrt 10.6.
