@@ -1635,3 +1635,20 @@ clean (no black textures): Wild Life 649 (3.89 fps), Wild Life Extreme 176 (1.06
 matching the prior baseline (WL 650 / WLE 179) within run-to-run noise. Shell suite also
 stable: gpubench 52.4, gamebench 14.0, gfxbench 60.3. No regression; the shipped driver
 holds its numbers.
+
+## NEGATIVE: safe (fsat-guarded) pow-squaring - avenue fully closed
+
+Attempted the documented "base<=1 guard" to make pow-squaring safe: square fsat(base)
+instead of base, so pow(x,N) cannot overflow fp16 to inf/NaN for base>1 (the black-texture
+cause) while staying identity for specular pow(ndh,N) where ndh is already in [0,1].
+Measured on gamebench (ULTRA env, GAMMA_POWI=1): 14.0 - no change. Isolating it, the BARE
+(non-fsat) pow-squaring ALSO gives 14.0 now, i.e. the pattern does not fire at all under
+the current gamma_powi gate. It only fired in the original session when gated on
+gamma_reassoc + GAMMA_FASTMATH, because gamma_force_fast_math clears fp_math_ctrl and
+supplies the `contract` allowance that the `exp2(contract)(...)` match requires; the
+opt-in GAMMA_POWI path does not enable that contract flag, so the match misses. Since
+pow-squaring is deprecated regardless (it blacks textures on real content) and the safe
+fsat form yields nothing even in the microbench, the entire pow-squaring avenue is now
+CLOSED - not worth re-wiring a contract-enable path for a lever that cannot ship. Source
+reverted to the committed state (bare 'a', gamma_powi opt-in, unused). Deployed driver and
+all shell benches unchanged (gamebench 14.0, gpubench 52.4).
