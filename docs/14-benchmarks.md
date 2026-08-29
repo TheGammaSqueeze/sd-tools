@@ -1597,3 +1597,20 @@ emulator RT pattern where it wins. Reverted /vendor to selective-fp16 ULTRA (163
 Also this tick: mesa-turnip HEAD is 2026-08-27 (d245b965) - already bleeding-edge Mesa
 main, so the "rebase to newer Mesa" lever is EXHAUSTED (nothing newer to pull; any a6xx
 fp16-scheduling improvement would have to be authored/upstreamed, not fetched).
+
+## NEGATIVE: wave size (thread64) does not help the fp16 dependent chain; gap exhausted
+
+Tested IR3_SHADER_DEBUG=thread64 (prefer 64-thread wave vs the deployed 128-wide
+fragment waves) on the latency-bound fp16 benches: gfxbench_f16 84.9 vs 85.1, gamebench
+14.0 vs 14.0, gpubench 52.4 vs 52.5 - no difference. So the fragment fp16 gap is NOT
+wave-occupancy limited; it is per-wave instruction latency on the dependent mad chain.
+Combined with the prior negatives (NIR nir_opt_vectorize no help, Mesa already at
+bleeding-edge 2026-08-27, and compute fp16 already reaching the 126 peak), the fragment
+fp16 codegen gap (85 vs stock 126 on dependent chains) is now EXHAUSTED via every
+tractable lever - env flags, wave size, NIR passes, config, Mesa version. Closing it would
+require actual ir3 backend work (co-issue independent scalar fp16 mads, or a lower-latency
+fp16 mad path) = Mesa upstream contribution territory, high-risk / multi-day, not a cron
+lever. NOTE this gap only bites pure fp16-ALU-bound fragment shaders (rare in real content
+where texture/bandwidth dominates); it does not affect the shipped driver's real-title
+scores. Perf-lever inventory is now largely closed; the loop's remaining value is
+GameNative/emulator compatibility tuning and keeping artifacts/docs current.
