@@ -7,7 +7,7 @@ only recovers the squaring form for the post-lowered exp2(log2(x)*8) at N=8. Thi
 extends that recovery to every constant positive-integer exponent 5..64 via binary
 exponentiation, keeping the math in the shader's native precision (and it is more
 accurate than the log/exp roundtrip). Measured +20% on the fp16 lighting bench
-(pow(x,32): 14.0 -> 16.8 GFLOPS) and +3.7% fp32. Gated on gamma_reassoc (ULTRA
+(pow(x,32): 14.0 -> 16.8 GFLOPS) and +3.7% fp32. OPT-IN ONLY (GAMMA_POWI env), never default-on: the fp16 squaring
 default-on; opt out with GAMMA_NOFASTMATH). Match is on the POST-lowering
 exp2(contract)(fmul(flog2(a), N)) form, mirroring Mesa's existing N=8 pattern, so it
 fires after lower_fpow rather than racing it.
@@ -27,6 +27,6 @@ fires after lower_fpow rather than racing it.
 +
 +optimizations.extend([
 +   (('fexp2(contract)', ('fmul', ('flog2', a), float(n))), _gamma_powi_tree(n),
-+    'options->gamma_reassoc')
++    'options->gamma_powi')
 +   for n in range(5, 65)
 +])

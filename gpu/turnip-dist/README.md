@@ -11,10 +11,12 @@ SG4250P, stock clock 1010 MHz) and documented in `docs/14-benchmarks.md`.
 |-----|-------|-------|
 | `GammaOS-Turnip-Adreno613-v1.adpkg.zip` | dw_noubwc (strict) | multiview VK 1.3 + 128-wide fragment waves + UBWC-off. Closest to reference precision. |
 | `GammaOS-Turnip-Adreno613-AGGRESSIVE-v1.adpkg.zip` | + constant-FMA reassociation | dw_noubwc plus stock-style FMA-chain reassociation (compute parity with stock). |
-| `GammaOS-Turnip-Adreno613-ULTRA-v3.adpkg.zip` | + forced fp16 + pow-squaring | **Recommended.** Everything above plus forced fp16 fragment math and constant-integer `pow()` lowered to repeated squaring. Fastest; fp16 is lossy. |
+| `GammaOS-Turnip-Adreno613-ULTRA-v1.adpkg.zip` | + forced fp16 | **Recommended.** Everything above plus forced fp16 fragment math. Fastest that renders correctly; fp16 is lossy. |
+| `GammaOS-Turnip-Adreno613-ULTRA-v3.adpkg.zip` | + pow-squaring | **DEPRECATED - do not use.** Adds constant-integer `pow()` -> repeated squaring; causes flickering / black textures on real content (fp16 squaring overflows to inf/NaN for bases >1). |
 
-ULTRA-v1/v2 are earlier ULTRA revisions; **v3 is the current, device-validated
-ULTRA** (adds the `pow()` -> repeated-squaring lowering). Use v3.
+**Use ULTRA-v1** (v1 and v2 are the same fp16 driver, 16330280). ULTRA-v3 added
+`pow()` repeated-squaring for a lighting-microbench win but it flickers/blacks textures
+in real games, so it was rolled back - the deployed GammaOS build ships the v1 driver.
 
 ## What ULTRA does
 - **multiview forced -> Vulkan 1.3** (153 device extensions) instead of the stock

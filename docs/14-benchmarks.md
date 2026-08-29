@@ -1442,3 +1442,21 @@ stays the unique large SFU-avoidance win. Conclusion: SFU-avoidance is now exhau
 integer pow; the remaining big fp16 lever is the deep ir3 half-reg vec2 packing (scalar
 mad.f16 vectorization, stock 126 vs Turnip 85). Microbenches kept in tree as characterization
 tools. Device unchanged (validated ULTRA 16337896); no flash this tick.
+
+## ROLLED BACK: pow-squaring (ULTRA v3) causes flickering / black textures
+
+Field reports: the ULTRA v3 driver (constant-integer pow() -> repeated squaring,
+16337896) causes heavy flickering and black textures on real content. Root cause:
+under forced fp16 the repeated-squaring chain for pow(x, N) overflows to inf/NaN when
+the base x > 1 (fp16 max is 65504, and x^32 for x just above 1 blows past it), whereas
+the exp2/log2 SFU path it replaced clamped/handled those ranges. The +20% lighting
+microbench win was real but not worth the visual corruption on shipping games.
+
+ROLLED BACK to the pre-v3 ULTRA (fp16 + reassoc + dw_noubwc, NO pow-squaring, 16330280
+= ULTRA v1/v2). Deployed driver, GammaOSCoreVendor, and the tree's vulkan.turnip.ultra.so
+are all reverted to 16330280; the v3 binary is kept as vulkan.turnip.ultra_powi_v3.so for
+record. Source: the pow-squaring nir pattern is now gated on a new gamma_powi option
+(GAMMA_POWI env, OPT-IN ONLY, never default-on) instead of gamma_reassoc, so a default
+ULTRA rebuild no longer includes it. To revisit safely it needs a base<=1 guard (only
+lower pow when the base is provably in [0,1], e.g. saturated dot products) before it can
+go back into ULTRA. Device-verified: pre-pow ULTRA boots and renders clean.
