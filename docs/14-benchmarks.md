@@ -1582,3 +1582,18 @@ backward-slice idea as fragment: protect the precision-critical compute ops) - a
 for content known to be fp16-safe (post-processing, upscale, some DXVK/RPCS3 compute). For
 now it is a documented 2.4x lever for opt-in compute-heavy workloads. Suite this tick
 (deployed selective-fp16 ULTRA): gpubench 52.4, gamebench 14.0, rtbench(512) 5662.
+
+## sysmem validated on 3DMark: ~2% below GMEM on real titles (stays GameNative-only)
+
+Flashed the sysmem GameNative variant (ULTRA + baked sysmem, 16338920) to /vendor and ran
+3DMark, screenshot-verified rendering clean (no black textures / corruption):
+- Wild Life:  637 (3.82 fps)  vs deployed GMEM 650  (-2.0%)
+- Wild Life Extreme: 176 (1.06 fps) vs deployed GMEM 179 (-1.7%)
+So sysmem is ~2% SLOWER than GMEM tiling on these tile-friendly real titles - as the
+rtbench data predicted (sysmem only wins on RT-heavy multi-pass content; WL/WLE are not
+that). Confirms the shipped split is correct: /vendor keeps GMEM (selective-fp16 ULTRA,
+best for native/tile-friendly content), and sysmem stays a GameNative-only opt-in for the
+emulator RT pattern where it wins. Reverted /vendor to selective-fp16 ULTRA (16338592).
+Also this tick: mesa-turnip HEAD is 2026-08-27 (d245b965) - already bleeding-edge Mesa
+main, so the "rebase to newer Mesa" lever is EXHAUSTED (nothing newer to pull; any a6xx
+fp16-scheduling improvement would have to be authored/upstreamed, not fetched).
