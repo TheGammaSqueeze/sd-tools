@@ -1563,3 +1563,22 @@ for nir_opt_vectorize to pair (different operands, RAW dependencies). So the sto
 Confirms the packing lever lives in ir3_sched / ir3_ra / ir3_rpt (co-issue independent
 scalar fp16 into a half-reg pair), a much deeper change than any NIR pass. Reverted the
 no-op pass (source clean). Deployed driver unchanged (selective-fp16 ULTRA 16338592).
+
+## Compute fp16 = +141% (2.4x), reaches the a6xx fp16 peak; fragment gap is scheduling
+
+Measured GAMMA_FP16_COMPUTE (forced fp16 on compute shaders, opt-in) on gpubench,
+deployed driver, GPU pinned:
+- gpubench fp32:              52.4 GFLOPS
+- gpubench GAMMA_FP16_COMPUTE: 126.2 GFLOPS  (+141%, 2.4x)
+The 126.2 lands right on the ~126 "stock fp16" figure - i.e. compute fp16 PACKS PERFECTLY
+here and hits the a6xx fp16 throughput ceiling. Contrast the fragment native-fp16
+dependent-chain bench gfxbench_f16 which sits at 85. So the 85-vs-126 fp16 gap is NOT a
+universal ir3 packing deficiency: compute (independent/parallel fp16 ALU) reaches the
+peak; only the fragment dependent-chain case (each mad waits on the previous) falls short,
+which is a latency/scheduling problem, not packing. Deployability: GAMMA_FP16_COMPUTE stays
+OPT-IN - it corrupts 3DMark Wild Life Extreme (WLE uses a compute shader broken by fp16,
+the black-band/speckle seen earlier). To ship it would need a SELECTIVE compute fp16 (same
+backward-slice idea as fragment: protect the precision-critical compute ops) - a candidate
+for content known to be fp16-safe (post-processing, upscale, some DXVK/RPCS3 compute). For
+now it is a documented 2.4x lever for opt-in compute-heavy workloads. Suite this tick
+(deployed selective-fp16 ULTRA): gpubench 52.4, gamebench 14.0, rtbench(512) 5662.
