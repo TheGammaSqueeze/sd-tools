@@ -1528,3 +1528,22 @@ fp16 speed and the black textures are the same tex-coord math - can't have both 
 NEXT LEVER: narrow the tex-coord protection (protect only large/atlas-texture UVs, or
 only the final UV op rather than the whole backward slice) to recover some Wild Life fp16
 without reintroducing black textures - measure black-texture risk via screenshot diff.
+
+## fp16 codegen gap quantified: Turnip 85.1 vs stock 126 (~48% half-reg-packing prize)
+
+Ran gfxbench_f16 (a shader with explicit float16_t math - native fp16, independent of our
+forced-fp16 demotion) on the deployed selective-fp16 ULTRA: 85.1 GFLOPS (20.8 mpix/s),
+matching gfxbench_f16feat 85.1. This confirms the long-noted "stock fp16 126 vs Turnip 85"
+gap exactly: the stock Qualcomm blob does ~126 on the same fp16-heavy shader, so Turnip
+leaves ~48% on the table for native fp16 workloads. Root cause: the a6xx can pack two
+independent scalar fp16 ops into one 32-bit register slot and issue them together (vec2
+half-reg / mad.f16 pairing); the stock blob does this well, ir3 often does not, leaving
+fp16 ops scalar at half throughput. This is the single biggest untapped Turnip lever on
+this GPU - but it is deep ir3 BACKEND work: ir3_base_options has lower_to_scalar=true, so
+NIR-level nir_opt_vectorize cannot help (everything is scalarized before the backend); the
+packing has to happen in ir3's rpt-group formation / scheduler / register allocator. IR3
+already forms rpt groups (IR3_DBG_EXPANDRPT is off by default), it just does not pair
+independent scalar fp16 chains as aggressively as the blob. Candidate approaches (multi-
+tick): teach ir3_rpt/ir3_sched to co-issue independent same-op fp16 scalars into vec2, or
+rebase to newer Mesa main (may have improved a6xx fp16 packing) and re-measure. Prize if
+closed: up to ~1.5x on fp16-bound fragment work (gamebench, WLE, and DXVK/RPCS3 shaders).
