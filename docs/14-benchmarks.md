@@ -1489,3 +1489,21 @@ multi-pass render-to-texture microbench would measure it offline (next lever).
 Also recorded this tick (deployed selective-fp16 ULTRA, GPU@1010): gpubench plain compute
 52.4 (reassoc's 127 is on the constant-coefficient FMA variant, not plain compute),
 gamebench 14.0, gfxbench 60.2, gb_exp 12.5, gb_trig 9.8, gb_sqrt 10.6.
+
+## Multi-pass render-to-texture bench: sysmem >= GMEM >= flushall on the RT pattern
+
+Built rtbench (added to the tree): ping-pongs between two color images, each pass
+samples the previous result and renders into the other with read-after-write barriers -
+the DXVK/VKD3D/RPCS3 emulator pattern the single-pass benches can't capture. Deployed
+selective-fp16 ULTRA, GPU pinned, passes/s (higher better):
+- 512x512, 600 passes:  GMEM 5629,  sysmem 5730 (+1.8%),  flushall 5539 (-1.6%)
+- 1024x1024, 400 passes: GMEM 1433, sysmem 1439 (+0.4%),  flushall 1417 (-1.1%)
+- 256x256, 1000 passes:  GMEM 20856, sysmem 20827 (~0)
+So on RT-heavy content sysmem is neutral-to-slightly-faster than GMEM tiling (peak +1.8%
+at 512, it avoids the tile store/load), and flushall is consistently ~1-1.6% slower (the
+per-submit cache flush). Pure-perf ordering: sysmem >= GMEM > flushall. Since the user
+found flushall best for MGS4, that preference is a CORRECTNESS win (flushall fixes a
+coherency corner these correct-in-all-modes benches don't expose), not a speed one -
+sysmem is faster where it renders correctly. Shipped a GameNative sysmem variant
+(gamenative_sysmem.so 16338920, zip GameNative-sysmem-v1) alongside the flushall one so
+MGS4 can be A/B'd; sysmem is the better default if it renders clean.
