@@ -9,14 +9,19 @@ SG4250P, stock clock 1010 MHz) and documented in `docs/14-benchmarks.md`.
 
 | Zip | Build | Notes |
 |-----|-------|-------|
+| `GammaOS-Turnip-Adreno613-ULTRA-v4.adpkg.zip` | selective fp16 | **Recommended - the shipped GammaOS driver.** dw_noubwc (multiview VK1.3 + 128-wide waves + UBWC-off) + FMA reassociation + selective forced fp16 (texture-coord/depth chains kept fp32 so textures do NOT go black). Fast and renders correctly. |
+| `GammaOS-Turnip-Adreno613-GameNative-flushall-v1.adpkg.zip` | ULTRA-v4 + flushall | **For emulators (GameNative/Winlator).** Adds a baked cache-flush coherency workaround for DXVK/VKD3D/RPCS3 render-to-texture. Fixes corruption in some titles (e.g. MGS4). |
+| `GammaOS-Turnip-Adreno613-GameNative-sysmem-v1.adpkg.zip` | ULTRA-v4 + sysmem | **For emulators.** Renders direct-to-sysmem (bypasses GMEM tiling); faster than flushall on RT-heavy content. A/B against the flushall build for your title. |
+| `GammaOS-Turnip-Adreno613-AGGRESSIVE-v1.adpkg.zip` | no fp16 | dw_noubwc + FMA reassociation, no forced fp16. 100% safe (no fp16 artifacts), ~10% slower than ULTRA on ALU-bound titles. |
 | `GammaOS-Turnip-Adreno613-v1.adpkg.zip` | dw_noubwc (strict) | multiview VK 1.3 + 128-wide fragment waves + UBWC-off. Closest to reference precision. |
-| `GammaOS-Turnip-Adreno613-AGGRESSIVE-v1.adpkg.zip` | + constant-FMA reassociation | dw_noubwc plus stock-style FMA-chain reassociation (compute parity with stock). |
-| `GammaOS-Turnip-Adreno613-ULTRA-v1.adpkg.zip` | + forced fp16 | **Recommended.** Everything above plus forced fp16 fragment math. Fastest that renders correctly; fp16 is lossy. |
-| `GammaOS-Turnip-Adreno613-ULTRA-v3.adpkg.zip` | + pow-squaring | **DEPRECATED - do not use.** Adds constant-integer `pow()` -> repeated squaring; causes flickering / black textures on real content (fp16 squaring overflows to inf/NaN for bases >1). |
+| `GammaOS-Turnip-Adreno613-ULTRA-v1.adpkg.zip` | blanket fp16 | **Superseded.** Forces fp16 on ALL fragment math including texture coordinates -> black textures on some content (e.g. MGS4). Use ULTRA-v4 (selective) instead. |
+| `GammaOS-Turnip-Adreno613-ULTRA-v3.adpkg.zip` | + pow-squaring | **DEPRECATED - do not use.** `pow()` repeated-squaring flickers / blacks textures (fp16 overflow to inf/NaN for bases >1). |
 
-**Use ULTRA-v1** (v1 and v2 are the same fp16 driver, 16330280). ULTRA-v3 added
-`pow()` repeated-squaring for a lighting-microbench win but it flickers/blacks textures
-in real games, so it was rolled back - the deployed GammaOS build ships the v1 driver.
+**Use ULTRA-v4** (selective fp16, driver 16338592) for general use - it is the shipped
+GammaOS driver. For emulators (GameNative/Winlator running DXVK/VKD3D/RPCS3, e.g. MGS4)
+use the GameNative-flushall or GameNative-sysmem variant. The older blanket-fp16 ULTRA-v1/v2
+(16330280) and the pow-squaring ULTRA-v3 both cause black textures and are superseded.
+If you see any fp16 artifact even on v4, fall back to AGGRESSIVE (no fp16, ~10% slower).
 
 ## What ULTRA does
 - **multiview forced -> Vulkan 1.3** (153 device extensions) instead of the stock
@@ -32,28 +37,32 @@ in real games, so it was rolled back - the deployed GammaOS build ships the v1 d
 
 ## Test results (RG 55G1, Adreno 613 @ 1010 MHz, device-validated)
 
-Numbers are for the recommended **ULTRA v1/v2** driver (fp16-only, 16330280).
+Numbers are for the recommended **ULTRA-v4** driver (selective fp16, 16338592).
 3DMark (real titles), higher is better:
 
-| Test | Stock Adreno | dw_noubwc (v1) | ULTRA (v1/v2) |
-|------|-------------:|---------------:|--------------:|
-| Wild Life (1440p)          | 700 | 649 | **719** |
-| Wild Life Extreme (4K)     | 174 | 167 | **184** |
+| Test | Stock Adreno | AGGRESSIVE (no fp16) | ULTRA-v4 (selective fp16) |
+|------|-------------:|---------------------:|--------------------------:|
+| Wild Life (1440p)          | 700 | 649 | 650 |
+| Wild Life Extreme (4K)     | 174 | 167 | **179** |
 
 Microbenchmarks (GFLOPS, GPU pinned):
 
-| Bench | Baseline | ULTRA (v1/v2) | Delta |
-|-------|---------:|--------------:|------:|
+| Bench | Baseline | ULTRA-v4 | Delta |
+|-------|---------:|---------:|------:|
 | Compute (gpubench)             | 127 (stock)       | 129  | stock parity (reassoc) |
 | Realistic lighting (gamebench) | 8.0 (Turnip fp32) | 14.0 | **+75%** (forced fp16) |
 
 Compute is compared against the stock Adreno blob (reassociation reaches parity);
-the lighting row is vs the same Turnip build with fp16 disabled (`GAMMA_NOFP16`),
-isolating the fp16 lever.
+the lighting row is vs the same Turnip build with fp16 disabled, isolating the fp16 lever.
 
-ULTRA v1/v2 renders 3DMark Wild Life and Wild Life Extreme cleanly (screenshot-verified:
-no banding, no black-frame corruption) and beats stock on every real title measured;
-dw_noubwc (v1) reaches ~93-96% of stock while adding the modern-Vulkan surface.
+ULTRA-v4 renders 3DMark Wild Life and Wild Life Extreme cleanly (screenshot-verified: no
+black textures) and beats stock on WLE (179 vs 174). The fp16 benefit is workload-
+dependent: it is +75% on ALU-bound lighting and roughly full on emulator/fragment-ALU
+content, but ~zero on texture-bound Wild Life (650 vs 649 aggressive) because the fp16 win
+there was texture-coordinate math that selective fp16 now protects to avoid black textures.
+The older blanket-fp16 ULTRA-v1/v2 scored higher on Wild Life (719) precisely because it
+did NOT protect those coords - which is what made textures go black. dw_noubwc reaches
+~93-96% of stock while adding the modern-Vulkan surface.
 
 > **Not ULTRA v3.** v3 added a constant-integer `pow()` -> repeated-squaring pass that
 > scored higher on the lighting microbench (16.8 GFLOPS, +110% vs fp32) but caused
