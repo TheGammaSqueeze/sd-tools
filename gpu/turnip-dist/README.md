@@ -9,7 +9,8 @@ SG4250P, stock clock 1010 MHz) and documented in `docs/14-benchmarks.md`.
 
 | Zip | Build | Notes |
 |-----|-------|-------|
-| `GammaOS-Turnip-Adreno613-ULTRA-v4.adpkg.zip` | selective fp16 | **Recommended - the shipped GammaOS driver.** dw_noubwc (multiview VK1.3 + 128-wide waves + UBWC-off) + FMA reassociation + selective forced fp16 (texture-coord/depth chains kept fp32 so textures do NOT go black). Fast and renders correctly. |
+| `GammaOS-Turnip-Adreno613-ULTRA-v5.adpkg.zip` | selective fp16 + compute round-robin | **Recommended - the shipped GammaOS driver.** dw_noubwc (multiview VK1.3 + 128-wide waves + UBWC-off) + FMA reassociation + selective forced fp16 (texture-coord/depth chains kept fp32 so textures do NOT go black) + round-robin compute-workgroup dispatch (+5.7% on compute, graphics-neutral, correctness-safe; opt out with `GAMMA_NO_COMPUTE_RR`). Fast and renders correctly. |
+| `GammaOS-Turnip-Adreno613-ULTRA-v4.adpkg.zip` | selective fp16 | **Superseded by v5.** Same as v5 without the compute round-robin dispatch. |
 | `GammaOS-Turnip-Adreno613-GameNative-sysmem-v1.adpkg.zip` | ULTRA-v4 + sysmem | **For emulators - try this first.** Renders direct-to-sysmem (bypasses GMEM tiling), a coherency fix for DXVK/VKD3D/RPCS3 render-to-texture. Only ~2% slower than default on real titles. |
 | `GammaOS-Turnip-Adreno613-GameNative-flushall-v1.adpkg.zip` | ULTRA-v4 + flushall | **For emulators - fallback.** Stronger per-submit cache-flush workaround; use only if sysmem still corrupts (fixes some titles sysmem can't). Costs ~10% on real titles, so prefer sysmem. |
 | `GammaOS-Turnip-Adreno613-AGGRESSIVE-v1.adpkg.zip` | no fp16 | dw_noubwc + FMA reassociation, no forced fp16. 100% safe (no fp16 artifacts), ~10% slower than ULTRA on ALU-bound titles. |
@@ -17,8 +18,8 @@ SG4250P, stock clock 1010 MHz) and documented in `docs/14-benchmarks.md`.
 | `GammaOS-Turnip-Adreno613-ULTRA-v1.adpkg.zip` | blanket fp16 | **Superseded.** Forces fp16 on ALL fragment math including texture coordinates -> black textures on some content (e.g. MGS4). Use ULTRA-v4 (selective) instead. |
 | `GammaOS-Turnip-Adreno613-ULTRA-v3.adpkg.zip` | + pow-squaring | **DEPRECATED - do not use.** `pow()` repeated-squaring flickers / blacks textures (fp16 overflow to inf/NaN for bases >1). |
 
-**Use ULTRA-v4** (selective fp16, driver 16338592) for general use - it is the shipped
-GammaOS driver. For emulators (GameNative/Winlator running DXVK/VKD3D/RPCS3, e.g. MGS4)
+**Use ULTRA-v5** (selective fp16 + compute round-robin, driver 16338864) for general use - it
+is the shipped GammaOS driver. For emulators (GameNative/Winlator running DXVK/VKD3D/RPCS3, e.g. MGS4)
 use the GameNative-sysmem variant first (only ~2% slower than default); fall back to GameNative-flushall (~10% slower) only if sysmem still corrupts. The older blanket-fp16 ULTRA-v1/v2
 (16330280) and the pow-squaring ULTRA-v3 both cause black textures and are superseded.
 If you see any fp16 artifact even on v4, fall back to AGGRESSIVE (no fp16, ~10% slower).
@@ -31,13 +32,17 @@ If you see any fp16 artifact even on v4, fall back to AGGRESSIVE (no fp16, ~10% 
 - UBWC framebuffer compression disabled (a measured net loss on this GPU);
 - constant-coefficient FMA-chain reassociation (matches the stock compiler, brings
   compute from 52 to stock-parity 127-129 GFLOPS);
+- round-robin compute-workgroup dispatch across the SP cores (v5): +5.7% on the compute
+  microbench (52.4 -> 55.4 GFLOPS), graphics-neutral, correctness-safe;
 - **selective** forced fp16 fragment math (large win on realistic fragment shaders;
   lossy) - the texture-coordinate and depth chains are kept fp32 so textures do not
   go black, unlike the older blanket-fp16 build.
 
 ## Test results (RG 55G1, Adreno 613 @ 1010 MHz, device-validated)
 
-Numbers are for the recommended **ULTRA-v4** driver (selective fp16, 16338592).
+Numbers are for the recommended **ULTRA-v5** driver (selective fp16 + compute round-robin,
+16338864). Compute round-robin adds +5.7% on the compute microbench (52.4 -> 55.4 GFLOPS)
+and is graphics-neutral (Wild Life 647, Wild Life Extreme 179 - unchanged from v4).
 3DMark (real titles), higher is better:
 
 | Test | Stock Adreno | AGGRESSIVE (no fp16) | ULTRA-v4 (selective fp16) |

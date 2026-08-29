@@ -1684,3 +1684,24 @@ tiling-bypass does not provide. Recommendation for GameNative: try sysmem first,
 to flushall only if sysmem still corrupts. Reverted /vendor to selective-fp16 ULTRA
 (16338592). Lesson: microbenches under-report flushall's cost - real multi-submit titles
 are the true signal.
+
+## SHIPPED: compute round-robin dispatch baked into ULTRA (v5, +5.7% compute, graphics-neutral)
+
+Baked TU_DEBUG=computeroundrobin (TU_DEBUG_COMPUTE_ROUND_ROBIN) default-on into the deployed
+ULTRA driver, opt-out via GAMMA_NO_COMPUTE_RR. It round-robins compute workgroups across the
+SP cores instead of the default packing. Measured, GPU pinned 1010 MHz:
+- gpubench (compute):  52.4 -> 55.4 GFLOPS  (+5.7%, stable across 3 runs each)
+- gfxbench (graphics): 60.3 (neutral)
+Built ULTRA (FASTMATH+FP16 default-on via seds, then reverse-sed to opt-in), driver
+16338592 -> 16338864 (+272 bytes of dispatch code). Flashed vendor_a via fastbootd, booted
+clean, driver confirmed on device (16338864).
+
+Real-title 3DMark validation (screenshot-verified rendering clean, no black textures, WLE's
+compute shaders NOT corrupted - the key check for a compute-dispatch change):
+- Wild Life:         647 (3.88 fps)  vs v4 650  (neutral, within variance)
+- Wild Life Extreme: 179 (1.07 fps)  vs v4 179  (identical)
+Compute-using content (RPCS3/DXVK compute, upscalers) gets the +5.7% for free; native
+graphics is unaffected. Shipped as ULTRA-v5 (GammaOS-Turnip-Adreno613-ULTRA-v5.adpkg.zip,
+driver 16338864). Deployed driver + selfbuilt canonical (vulkan.turnip.ultra_safefp16.so)
+updated. Device left on the working v5 driver. Mesa sources restored to env opt-in (never
+git-checkout - reverse-sed only, as mesa has no committed gamma baseline).
