@@ -1,5 +1,16 @@
 # Overclock stress-test and benchmark campaign (RG 55G1 / RavelinP)
 
+> **Current status (2026-08-29): the shipped Turnip driver is ULTRA v1/v2 (fp16-only,
+> 16330280)** = dw_noubwc (multiview VK1.3 + fragment wide-wave + UBWC-off) + constant-FMA
+> reassociation + forced fp16 fragment math. Real-title scores: 3DMark Wild Life **719**
+> (stock 700), Wild Life Extreme **184** (stock 174), +75% on the fp16 lighting microbench;
+> renders correctly.
+> **ULTRA v3 (pow-squaring, 16337896) was ROLLED BACK** - it flickers / blacks textures on
+> real games (the fp16 repeated-squaring for pow(x,N) overflows to inf/NaN for bases >1).
+> Its pow-squaring pass is now opt-in only (`GAMMA_POWI` env, never default). This file is a
+> chronological research log; where earlier entries call the pow-squaring build "deployed",
+> that is superseded by this banner and the final rollback entry.
+
 Goal: push GPU / CPU / MEMORY as high as possible while staying stable, measured
 against a stock-max baseline. Device runs GammaOS Next Lite (rooted). All runs
 use `scripts/bench/` with fan at max (`persist.gammaos.fan_mode=max`) and thermal
