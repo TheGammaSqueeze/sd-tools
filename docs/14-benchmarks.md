@@ -3290,3 +3290,29 @@ those are rare (multi-texture material shaders are usually >70 instrs and alread
 at max prefetch). No microbench improvement -> fails ship gate (a), not shippable.
 Kept GAMMA_PREFETCH as a default-off opt-in (harmless latency knob, like
 GAMMA_WIDE_WAVE) for any future real-content trial. v7 baseline unchanged.
+
+### Lever #4 completion: dynamic-state per-draw CPU cost (dynbench) - path fully characterized, no safe win
+
+Added dynbench (scripts/bench/src/dynbench.c): descbench + per-draw
+vkCmdSetViewport/vkCmdSetScissor (churning the values to force re-emit) - the last
+untested piece of DXVK's per-draw hot path. Full per-draw CPU breakdown (v7
+config, device a28c0e0e):
+
+| bench    | per-draw op                          | us_per_draw |
+|----------|--------------------------------------|-------------|
+| drawbench| push constants                       | 0.645       |
+| descbench| descriptor-set bind                  | 0.587       |
+| dynbench | descriptor + viewport/scissor dynstate | 1.03      |
+
+Dynamic-state churn (viewport+scissor) is the DOMINANT per-draw CPU cost, adding
+~0.44us on top of descriptor binding. But it is NOT safely reducible: Turnip uses
+the standard mesa vk-runtime dynamic-state path (MESA_VK_DYNAMIC_VP_*), dirty-
+tracked via BITSET flags so it re-emits ONLY when the state actually changes, and
+the emission is necessary a6xx register programming (GRAS viewport/scissor). No
+redundancy to eliminate. Crucially, real DXVK/VKD3D content does NOT change
+viewport/scissor every draw (typically once per render pass / RT change) - dynbench
+is the worst case; most real draws hit the dirty-track early-out at near the
+descbench/drawbench cost. So lever #4 is now FULLY characterized across all three
+per-draw hot paths (pushconst + descriptor + dynstate) and fully closed: the
+recording path is optimally dirty-tracked, all residual cost is necessary work.
+dynbench kept as a durable tool (auto-built by build_benches.sh). v7 unchanged.
