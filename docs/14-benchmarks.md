@@ -3028,3 +3028,26 @@ STILL microbench-only, NOT flashed. Shipping to /vendor remains gated on: a bake
 ULTRA-v6 + selective-UBWC build, native correctness re-confirmation (3DMark / a
 native title), and an explicit user-approved fastbootd flash. System driver
 untouched (16342072). Awaiting user go-ahead before building/flashing that path.
+
+### Maintenance tick (2026-08-30): integrity + upstream clean, loop at terminal state
+
+Integrity: installed GameNative emulator driver md5 73b058a1... == repo artifact,
+meta "nofp16 v7", selected; system /vendor driver ULTRA-v6 (16342072) untouched;
+no stale binds, governor performance. Upstream lever #2 re-polled: unchanged
+(newest freedreno commit f5f84133, 2026-08-28), still current.
+
+Terminal state: the emulator nofp16 optimization loop is COMPLETE - every lever
+and follow-up closed with tool-substantiated evidence, one real win shipped
+(selective UBWC v7, texbench +2.2x, GZ+MGS4 clean). Two characterized-but-not-
+shipped opportunities remain, both gated on a user decision, not autonomous
+authority:
+  (i) System driver: selective UBWC gives +44-45% rtbench at native resolutions
+      with no sampling loss (lossless) - needs a baked ULTRA-v6+selective build,
+      native validation, and a user-approved fastbootd /vendor flash.
+  (ii) fp16 emulator variant (GameNative-ubwc, fp16-tolerant titles): selective
+      UBWC would give it texbench +2.1x with rtbench preserved, but that variant
+      cannot pass the loop's GZ-clean ship gate (fp16 blacks Fox Engine by
+      design), so it is not shipped under autonomous authority.
+Absent a new upstream freedreno perf commit or a user go-ahead on (i)/(ii), the
+loop remains in steady state: periodic upstream re-poll + integrity/regression
+guard. No new in-scope ship candidate exists.
