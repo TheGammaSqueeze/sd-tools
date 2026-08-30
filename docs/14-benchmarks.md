@@ -2878,3 +2878,26 @@ by cheap scheduling changes - it is fundamental to the shaders' data flow. No sh
 candidate; source reverted to keep the tree minimal (unlike the other GAMMA_* env
 levers, this one has no value to preserve as an opt-in). Confirms exhaustion; v7
 stands. This closes the register-pressure/occupancy avenue that occbench opened.
+
+### Safe-opt tick: maintenance - lever #2 re-poll + full v7 regression sweep (clean)
+
+- Lever #2 upstream re-poll: origin/main re-fetched; freedreno set unchanged
+  (newest freedreno commit still f5f84133, 2026-08-28) - no new ir3/vulkan perf
+  work in the ~2 days since our base. Remain current, nothing to backport.
+- Integrity: installed GameNative driver md5 73b058a1... matches the shipped
+  repo artifact. What runs == what is committed.
+- Full v7 regression sweep (shipped baked .so, no env), device a28c0e0e @1010:
+
+| bench      | v7 canonical | this pass |
+|------------|--------------|-----------|
+| gpubench   | 55.4         | 55.4      |
+| gamebench  | 8.1          | 8.1       |
+| gamebench2 | 11.6         | 11.6      |
+| gfxbench   | 73.0         | 73.0      |
+| vertbench  | 25.9         | 25.9      |
+| rtbench    | 7774         | 7776      |
+| texbench   | 1.48         | 1.48      |
+
+Zero drift on any bench; the texbench +2.2x win is intact. v7 remains the shipped
+correctness-safe optimum. Lever space stays exhausted; lever #2 is the only
+renewable source and had nothing new. No new ship candidate.
