@@ -2785,3 +2785,20 @@ throughput perf commit since our base (2026-08-27). We remain current; lever #2
 yields nothing new this cycle. Lever #2 is the one renewable lever - worth
 re-polling periodically as upstream lands new freedreno work; nothing actionable
 today. v7 stands as the shipped optimum.
+
+### Safe-opt tick: v7 integrity + regression-guard pass (clean)
+
+Verified the shipped state end to end:
+- Integrity: installed GameNative driver, repo canonical
+  vulkan.turnip.gamenative_ubwc_nofp16.so, and the zip-internal libvulkan_freedreno.so
+  all share md5 73b058a137ef02119c0daa70fd5d1353; device meta reads "nofp16 v7".
+  What runs == what is committed == what is distributed.
+- Regression spot-check (shipped baked .so, no env, bind-mounted): texbench 1.48
+  gtex/s (the +2.2x selective-UBWC win), rtbench 7799 passes/s (guardrail
+  preserved), gfxbench 73.1, gamebench 8.1 - all match the shipped v7 baseline,
+  no drift. The baked default-on config behaves identically to the env-driven
+  measurements, confirming the bake is correct.
+
+No regression, integrity intact. v7 remains the shipped correctness-safe optimum;
+the safe-optimization lever space stays exhausted (lever #2 upstream re-poll is
+the only renewable source and had nothing new last check). No new ship candidate.
