@@ -3339,3 +3339,21 @@ is granular and optimal. Viewport is inherently ~3.5x costlier than scissor
 integer rects) - necessary a6xx HW programming, not reducible. This rules out the
 one potential win the dynbench finding suggested; lever #4 is definitively closed
 with no safe redundancy anywhere in the per-draw path. v7 unchanged.
+
+### GPU lever check: LRZ (Low Resolution Z / early depth rejection) - already maximally enabled, no safe lever
+
+Examined LRZ, a real a6xx early-depth-rejection feature (skips shading occluded
+pixels = precision-safe when correctly applied). Turnip's tu_lrz.cc enables LRZ by
+DEFAULT and only DISABLES it when correctness requires - every disable path logs a
+lrz_disable_reason and the source explicitly cites Qualcomm's "LRZ do not disable"
+best-practice doc. The TU_DEBUG tokens (nolrz, nolrzfc) only turn LRZ OFF for
+debugging; there is no "enable more LRZ" knob. So LRZ is already at its maximum
+safe extent - the disables are correctness-mandatory (wrong LRZ = missing/incorrect
+geometry), not conservative tuning that could be relaxed. No safe lever here; this
+GPU perf feature is already optimal. v7 unchanged.
+
+Note: device a28c0e0e was OFFLINE this tick (physically powered off / unplugged
+between ticks - not caused by this tick, which was source-analysis only; last tick
+left it clean, binds=0, ULTRA-v6 + v7 intact). No microbench/GZ possible until it
+reconnects; the LRZ finding is a device-independent code analysis. Next tick will
+re-verify device state on reconnect.
