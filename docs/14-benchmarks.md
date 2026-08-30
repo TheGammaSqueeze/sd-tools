@@ -1734,3 +1734,41 @@ compute paths are byte-identical (the keep-set refactor only adds the non-fragme
 the deployed v5 driver is unchanged; no vendor reflash. Source captured in
 turnip-force-fp16.patch; candidate built as vulkan.turnip.vtxfp16safe.so. Deployed driver
 remains selective-fp16 + compute-round-robin v5 (16338864), device left working.
+
+## Stock-blob gap profiled + UBWC is a +43% emulator render-to-texture win (GameNative-ubwc variant)
+
+Bind-mounted the STOCK Qualcomm Adreno 64-bit blob (/work/55g1_super/qcom_gpu/vulkan.adreno.so,
+4041984 bytes, Vulkan 1.1) and ran the full suite vs our deployed v5, GPU pinned 1010 MHz, to
+quantify where Turnip trails the proprietary driver:
+
+| bench          | stock blob | our v5 | gap |
+|----------------|-----------:|-------:|-----|
+| gpubench (compute)        | 128.9 | 55.4 | stock +133% |
+| gamebench (lighting frag) |   8.8 | 14.0 | WE +59% (our fp16) |
+| gfxbench                  |  77.8 | 60.1 | stock +30% |
+| gfxbench_f16              | 127.4 | 84.9 | stock +50% (fp16 codegen gap) |
+| vertbench                 |  22.7 | 23.2 | parity |
+| rtbench (multi-pass RT)   |  8533 | 5686 | stock +50% |
+
+Two big real gaps: compute throughput (stock's scheduler/packing) and multi-pass
+render-to-texture (rtbench) - the latter is exactly the DXVK/VKD3D/RPCS3 emulator pattern.
+Chased the rtbench gap: it is UBWC. We disable UBWC by default (a measured ~7% GAIN on native
+tiled 3DMark: WL 606->648, WLE 158->170), but UBWC is a large WIN on bandwidth-bound multi-pass
+RT. Measured on the deployed v5 via the GAMMA_UBWC env lever:
+- rtbench UBWC off: 5636-5710   UBWC on: 8062-8118   => +42-43%
+- everything else (gpubench/gamebench/gfxbench/gfxbench_f16/vertbench): neutral within noise
+- UBWC+SYSMEM stacks slightly on top of UBWC alone (8105-8112 best)
+So UBWC is neutral on native microbenches but recovers most of the rtbench gap to stock (8118 vs
+stock 8533). UBWC is lossless framebuffer compression, so it carries NO correctness risk (no
+black textures) - it is a pure bandwidth/perf tradeoff: ~7% worse on native tiled titles, ~43%
+better on RT-pingpong emulator chains.
+
+Shipped as GameNative-ubwc-v1 (ULTRA-v5 + UBWC-on + sysmem-on baked, driver 16338840). Baked
+build verified via bind-mount with NO env vars: rtbench 8118 (+43%), gfxbench 60.4, gamebench
+14.0 (fp16 kept), gpubench 55.4 (compute-RR kept). NOT flashed to /vendor and NOT the default -
+UBWC's native cost makes it emulator-only; it is imported into Winlator/GameNative as an
+AdrenoTools driver like the sysmem/flushall variants. Deployed device driver stays ULTRA-v5
+(UBWC off, 16338864). Recommendation: for RT/post-process-heavy GameNative titles (MGS4) try
+GameNative-ubwc; for coherency-only issues use GameNative-sysmem. NOTE for a future tick: the
+compute gap (stock 128.9 vs 55.4) is the next big lever - our FASTMATH reassoc reaches parity
+only on pure FMA-chain patterns, not gpubench's compute shader; worth profiling why.
