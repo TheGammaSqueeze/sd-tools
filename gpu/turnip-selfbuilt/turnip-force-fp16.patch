@@ -1,5 +1,5 @@
 diff --git a/src/freedreno/ir3/ir3_nir.c b/src/freedreno/ir3/ir3_nir.c
-index a4e65821..9c6a933b 100644
+index a4e65821..29953796 100644
 --- a/src/freedreno/ir3/ir3_nir.c
 +++ b/src/freedreno/ir3/ir3_nir.c
 @@ -287,6 +287,147 @@ ir3_lower_bit_size(const nir_instr *instr, UNUSED void *data)
@@ -174,7 +174,24 @@ index a4e65821..9c6a933b 100644
     unsigned lower_flrp = (s->options->lower_flrp16 ? 16 : 0) |
                           (s->options->lower_flrp32 ? 32 : 0) |
                           (s->options->lower_flrp64 ? 64 : 0);
-@@ -399,6 +557,7 @@ ir3_optimize_loop(struct ir3_compiler *compiler,
+@@ -302,6 +460,16 @@ ir3_optimize_loop(struct ir3_compiler *compiler,
+    do {
+       progress = false;
+ 
++      /* GammaOS: re-flag fast-math each iteration. gamma_force_fast_math above only
++       * flags the ALU present before the loop; nir_opt_algebraic fuses fmul+fadd into
++       * ffma inside the loop, and those fused ffmas are NOT flagged, so the ~ffma
++       * constant-coefficient reassociation patterns (gamma_reassoc) never match. Re-
++       * applying here flags the fused ffmas so the next iteration's nir_opt_algebraic
++       * collapses constant-coefficient FMA chains (restores the ~2.5x compute win the
++       * earlier build had: gpubench 52 -> 129, stock parity). */
++      if (os_get_option("GAMMA_FASTMATH"))
++         gamma_force_fast_math(s);
++
+       OPT(s, nir_lower_vars_to_ssa);
+       progress |= OPT(s, nir_lower_alu_to_scalar, NULL, NULL);
+       progress |= OPT(s, nir_lower_phis_to_scalar, NULL, NULL);
+@@ -399,6 +567,7 @@ ir3_optimize_loop(struct ir3_compiler *compiler,
     } while (progress);
  
     OPT(s, nir_lower_var_copies);
@@ -182,7 +199,7 @@ index a4e65821..9c6a933b 100644
     return did_progress;
  }
  
-@@ -1523,6 +1682,21 @@ ir3_nir_lower_variant(struct ir3_shader_variant *so,
+@@ -1523,6 +1692,21 @@ ir3_nir_lower_variant(struct ir3_shader_variant *so,
        }
     }
  

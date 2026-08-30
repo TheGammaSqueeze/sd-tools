@@ -2110,3 +2110,31 @@ texture-bound content (Wild Life), which is exactly the black-texture-avoiding t
 strengthens the case that ULTRA's selective fp16 is the correct default: near-100% wins on the
 fragment-ALU-heavy shaders real games run, with black-texture safety as pure upside. Added
 gamebench2 and gamebench_pm as permanent benches. No driver change; device on ULTRA-v6 (16342072).
+
+## Found a lost FMA-reassoc regression vs old aggressive.so; reflag fix restores fragment case (compute case still open)
+
+Isolating fastmath's contribution surfaced a big discrepancy: the SHIPPED old aggressive.so
+(16329768, ~2 weeks old) hits gpubench 128.8 and gfxbench 72.8, but a FRESH aggressive built from
+the current source only gets gpubench 55.4 / gfxbench 60.2. Disasm shows why: old aggressive's
+inner FMA loop has 0 mad.f32 (the constant-coefficient chain fully collapsed by reassociation),
+the fresh build has 4 mad.f32 (reassoc did not fire). So the current source LOST the
+constant-coefficient FMA-chain reassociation that the earlier build had (nir_opt_algebraic.py
+gamma_reassoc patterns).
+
+Root cause: gamma_force_fast_math runs once before the optimize loop, but nir_opt_algebraic fuses
+fmul+fadd into ffma INSIDE the loop, and those fused ffmas are never flagged fast-math, so the
+~ffma reassoc patterns cannot match. Fix: re-apply gamma_force_fast_math at the top of each loop
+iteration so fused ffmas get flagged. This RESTORES the fragment case exactly: fresh-aggressive+fix
+gfxbench 72.9 == old aggressive 72.8 (+21% vs the regressed 60.2), disasm-confirmed. It does NOT
+restore the compute case (gpubench still 55.4 / 4 mad.f32) - the gpubench collapse to 128.8 in old
+aggressive is a separate, deeper reassoc that the reflag does not re-enable; that +133% compute win
+(stock parity) remains an open thread for a future tick.
+
+Deployment impact: NEUTRAL on the shipped ULTRA driver. ULTRA-v7 (v6 + reflag) benches identical to
+v6 on everything (gpubench 55.4, gamebench 14.0, gfxbench 60.2, gamebench2 21.5, rtbench, vertbench)
+because forced fp16 rewrites the fragment shaders so the fp32 FMA-reassoc no longer applies - the
+gfxbench win only shows on the no-fp16 aggressive path. So NOT shipping a new ULTRA (v7 == v6); kept
+the reflag fix in source (turnip-force-fp16.patch) as a correctness fix so any future aggressive
+rebuild retains the fragment reassoc. The shipped old aggressive.so already has it, and ULTRA-v6
+stays deployed (16342072). Priority next: crack the gpubench compute collapse (128.8) that old
+aggressive achieves and restore it for ULTRA - by far the largest unrealized lever found so far.
