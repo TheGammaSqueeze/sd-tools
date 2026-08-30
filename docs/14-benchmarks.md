@@ -1970,3 +1970,26 @@ pipeline differences, not a single addressable lever.
 Added texbench as a permanent diagnostic (enables future texture-LOD / filtering experiments). No
 driver change; device on ULTRA-v5 (16338864). Positive: our texture path already beats the
 proprietary blob.
+
+## Texture LOD-bias lever characterized (quality-lossy, no free tier): not a default
+
+Used the new texbench (added a mipLodBias arg) to characterize the "texture LOD bias" candidate
+lever - forcing a positive LOD bias samples smaller mips, cutting texture bandwidth. Swept bias on
+the deployed v5, 1920x1080:
+- bias 0.0: 1.43 Gtexels/s
+- bias 0.5: 1.33  (noise / no gain)
+- bias 1.0: 1.40  (no gain)
+- bias 2.0: 2.35  (+64%)
+- bias 4.0: 3.89  (+172%)
+
+The speedup only appears at bias >= 2, where the sampled mips get small enough to fit the texture
+cache and stop hitting DRAM. But bias +2 and beyond is VISIBLY blurry (sampling mip 2+), so the
+throughput win is purely a quality tradeoff, and crucially there is NO free tier: +0.5 and +1.0
+give zero speedup (still DRAM-bound), so no lossless FPS is available from LOD bias.
+
+Conclusion: LOD bias is a real texture-bandwidth performance lever but only at a visible quality
+cost, and it is a per-sampler user/emulator preference (a global driver force would blur UI text
+and every surface), not a driver default. Not shipping it as a GAMMA lever. This also reconfirms
+last tick's finding: our texture sampling is already fast (we lead stock), and the only way to go
+faster is to sample less data (blur), not a codegen/sampler-efficiency win. Kept the texbench
+lodbias arg for future characterization. No driver change; device on ULTRA-v5 (16338864).

@@ -66,7 +66,7 @@ int main(int argc,char**argv){
   VkImageView texview; VK(vkCreateImageView(dev,&tivci,0,&texview));
   VkSamplerCreateInfo sci={.sType=VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,.magFilter=VK_FILTER_LINEAR,.minFilter=VK_FILTER_LINEAR,
     .mipmapMode=VK_SAMPLER_MIPMAP_MODE_LINEAR,.addressModeU=VK_SAMPLER_ADDRESS_MODE_REPEAT,.addressModeV=VK_SAMPLER_ADDRESS_MODE_REPEAT,
-    .addressModeW=VK_SAMPLER_ADDRESS_MODE_REPEAT,.maxLod=(float)TMIP};
+    .addressModeW=VK_SAMPLER_ADDRESS_MODE_REPEAT,.mipLodBias=(argc>5?(float)atof(argv[5]):0.0f),.maxLod=(float)TMIP};
   VkSampler samp; VK(vkCreateSampler(dev,&sci,0,&samp));
 
   // descriptor set: combined image sampler at binding 0
