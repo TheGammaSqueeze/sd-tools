@@ -126,6 +126,31 @@ fp16 is lossy (reduced precision); most content renders correctly, but a title t
 shows banding can opt out per-effect with `GAMMA_NOFP16` (fp16) / `GAMMA_NOFASTMATH`
 (reassociation).
 
+### Emulator driver benchmarks (GameNative-ubwc-nofp16 v7)
+
+The recommended emulator driver is a DIFFERENT tuning from the system driver: no
+forced fp16 (Fox Engine correctness) + UBWC + sysmem, and v7 adds SELECTIVE UBWC.
+The emulator's DXVK/VKD3D workload is render-to-texture-heavy (the opposite of
+native 3DMark), so UBWC pays off here. Microbenchmarks on-device, GPU pinned 1010:
+
+| Workload | UBWC off | UBWC on (v6) | selective UBWC (v7) |
+|----------|---------:|-------------:|--------------------:|
+| Render-to-texture bandwidth (rtbench, passes/s) | 5680 | 8118 (+43%) | 8118 (kept) |
+| Sample-only texture (texbench, Gtex/s)          | 1.48 | 0.70         | **1.48 (+2.1x vs v6)** |
+| Fragment ALU (gamebench / gfxbench, GFLOPS)      | 8.1 / 73 | 8.1 / 73 | 8.1 / 73 (flat) |
+
+v7's selective UBWC is the best of both: it keeps UBWC on render targets (the +43%
+render-to-texture win DXVK relies on) while turning it OFF for sample-only textures
+(2.1x faster to sample uncompressed on the a613). It is lossless (UBWC is a
+compression layout - it cannot change pixels), device-validated CLEAN and visually
+unchanged on MGS V: Ground Zeroes and MGS4.
+
+This selective-UBWC win is EMULATOR-SPECIFIC. On native 3DMark it REGRESSES (Wild
+Life 648 -> 609, Wild Life Extreme 176 -> 171) because native rendering is
+memory-bandwidth-bound where a613 UBWC is a net loss - which is exactly why the
+system `/vendor` driver keeps UBWC OFF. The two drivers make opposite UBWC choices
+and each is optimal for its workload.
+
 ## How to use
 In Winlator (or GameHub / any AdrenoTools-based loader): Contents / Video / Graphics
 Driver -> import / add driver -> select the .zip -> pick it as the Turnip driver.
