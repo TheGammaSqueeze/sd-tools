@@ -2254,3 +2254,16 @@ refreshed the recommended-driver test-results section with the full ULTRA-v6-vs-
 (gamebench +59%, gamebench2 +84%, texbench +9.6%, gpubench_dd parity, gfxbench synthetic -23%), the
 constant-fold compute footnote, and corrected the residual v4 references. Device on ULTRA-v6
 (16342072).
+
+## GameNative-sysmem and -flushall variants refreshed to the v6 base
+
+Rebuilt the two remaining emulator fallback variants (they were still on the v4 base) on the v6
+source so all GameNative variants are now consistent and current. GameNative-sysmem-v1 (driver
+16341832) and GameNative-flushall-v1 (driver 16341728) now include the compute round-robin dispatch
+AND the nir_opt_non_uniform DXVK lowering (both absent from the old v4 builds), plus current
+selective fp16. Bind-mount verified the baked flags with no env: sysmem gamebench 14.0 / gpubench
+55.4 / rtbench 5500; flushall gamebench 14.0 / gpubench 55.4 / rtbench 5426 (flushall's per-submit
+flush slightly below sysmem, as expected). Repackaged both zips (clean, 2 files each) and updated
+the README base labels to ULTRA-v6. All four GameNative variants (ubwc / sysmem / flushall +
+maxfp16-experimental) are now on the v6 base with the DXVK non-uniform pass. No native change;
+device on ULTRA-v6 (16342072).
