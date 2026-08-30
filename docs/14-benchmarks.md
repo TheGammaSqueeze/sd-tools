@@ -2726,3 +2726,26 @@ Ground Zeroes / MGS4 shader set, capturing the +73-84% fragment-ALU fp16 headroo
 on the safe shaders while keeping the material/lighting shaders at fp32. This is a
 multi-tick build (shader-dump capture + per-hash A/B + GZ per-hash validation),
 not a global-knob rotation, and is the only identified path to further headroom.
+
+### Safe-opt tick: lever #5 sysmem-vs-GMEM at EMULATOR resolutions - verdict resolution-independent
+
+Prior lever-5 test was only at rtbench's default 512x512. GameNative renders much
+larger, where the GMEM-tiling vs direct-sysmem balance could in principle flip.
+Swept rtbench resolution on the v7 config (selective UBWC on), sysmem on vs off:
+
+| rtbench size | sysmem ON | sysmem OFF (GMEM) |
+|--------------|-----------|-------------------|
+| 512          | 7806      | 7768              |
+| 720          | 3915      | 3916              |
+| 1080         | 1746      | 1752              |
+| 1280         | 1235      | 1230              |
+
+Within <0.5% at EVERY resolution - the verdict does not flip with size. The RT
+ping-pong pattern does not favour GMEM tiling over direct-sysmem at any tested
+resolution. Likely because UBWC is on the render target (COLOR_ATTACHMENT|SAMPLED)
+so the RT is compressed regardless of the sysmem/GMEM path, and UBWC already
+captures the bandwidth. Baseline sysmem-on stays correct (and provides the
+emulator RT/feedback coherency the A12-fix relies on). Lever #5's last untested
+dimension (higher resolutions) is closed - no shippable win, verdict is
+resolution-independent. All six levers + the UBWC sub-space are now fully
+exhausted; v7 (shipped) stands as the correctness-safe optimum.
