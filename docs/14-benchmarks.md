@@ -36,6 +36,21 @@
 > toolkit built along the way: drawbench, occbench, descbench. The only renewable
 > lever is (2) upstream re-poll; ship gate stays (a) microbench + (b) GZ-clean +
 > (c) no-MGS4-regression.
+>
+> **SYSTEM /vendor driver (ULTRA-v6, 16342072) - user-approved expansion CONCLUDED
+> (2026-08-30) via 3DMark.** Question: does the emulator's selective-UBWC win also
+> help the native system driver? Answer: NO - it REGRESSES 3DMark. Validated by
+> bind-mount (no flash): Wild Life 648 -> 609 (-6%, x2), Wild Life Extreme 4K 176
+> -> 171 (-3%). The a613 UBWC overhead is a net loss on native content (sampling +
+> single-pass RT) at every resolution - which is exactly why ULTRA-v6 already
+> forces UBWC OFF. So the two drivers' OPPOSITE UBWC choices are each optimal for
+> their workload: emulator (DXVK render-to-texture, rtbench-like) -> selective UBWC
+> (v7); native (3DMark) -> UBWC off (ULTRA-v6). System driver is at its safe
+> optimum (UBWC off; fp16 at the selective safe-max since blanket blacks some
+> native content; fastmath/compute-RR/nir_opt_non_uniform/wide-waves all on;
+> upstream current). NOT flashed, untouched. Lesson: rtbench microbench predicted
+> the OPPOSITE of the 3DMark result for native - real-title validation was
+> decisive. 3DMark harness (score via fm_local_results.db, tab-nav) reusable.
 
 Goal: push GPU / CPU / MEMORY as high as possible while staying stable, measured
 against a stock-max baseline. Device runs GammaOS Next Lite (rooted). All runs
