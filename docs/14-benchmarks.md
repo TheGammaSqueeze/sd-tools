@@ -2695,3 +2695,34 @@ would require a NEW class of lever - e.g. a per-shader-hash fp16 allowlist prove
 non-blacking on a captured real Ground Zeroes shader trace (needs a shader-dump +
 per-hash A/B harness, a larger multi-tick investigation), or app-specific pipeline
 tuning - not a rotation of the existing global knobs.
+
+### Selective-UBWC boundary is provably optimal - UBWC lever definitively closed
+
+Confirmed the v7 selective-UBWC decision boundary (keep UBWC when an attachment
+bit is present, disable it for sample-only images) is optimal on BOTH sides,
+using existing data + the rtbench usage flags:
+
+- rtbench's ping-pong images are created COLOR_ATTACHMENT_BIT | SAMPLED_BIT, i.e.
+  render-to-texture that is sampled back the next pass - the exact DXVK/VKD3D
+  emulator pattern. With UBWC ON these get 7753 passes/s; the earlier full
+  UBWC-OFF run (which also strips UBWC from these RT-sampled images) dropped to
+  4081 (-47%). So attachment+sampled images NEED UBWC - the RT tile store/load
+  compression win dominates the sample-back decompression cost. v7 keeps UBWC
+  here (attachment bit present). CORRECT.
+- texbench's image is SAMPLED-only (upload-once-sample-many): UBWC OFF is 2.2x
+  faster (0.66 -> 1.48). v7 disables UBWC here. CORRECT.
+
+Both sides of the boundary are empirically the right choice, so there is no
+selective-UBWC refinement left (no third category to reclassify). The UBWC lever
+- bank/tiling config (lever 1), global on/off, and now per-usage selectivity - is
+fully explored and optimally set in the shipped v7.
+
+Remaining direction (only): a NEW class of lever outside the global knobs. The
+concrete first sub-step for a future tick is a per-shader-hash fp16 allowlist:
+Turnip already computes a per-stage blake3 (v->info stage_blake3, used in
+tu6_draw_common's trace_start_draw), so shaders are individually identifiable. A
+harness could enable fp16 only for shader hashes proven non-blacking on a captured
+Ground Zeroes / MGS4 shader set, capturing the +73-84% fragment-ALU fp16 headroom
+on the safe shaders while keeping the material/lighting shaders at fp32. This is a
+multi-tick build (shader-dump capture + per-hash A/B + GZ per-hash validation),
+not a global-knob rotation, and is the only identified path to further headroom.
