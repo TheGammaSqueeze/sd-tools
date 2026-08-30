@@ -3223,3 +3223,29 @@ knob enumeration - every knob is now characterized; the only ones with real perf
 effect that are ALSO lossless are already baked into the shipped drivers
 (fastmath, UBWC-selective, sysmem, compute-RR, nir_opt_non_uniform). Nothing new
 to ship; both drivers remain at their safe optima.
+
+### Lever #5 final angle: flushall vs sysmem vs GMEM at emulator resolutions (bandwidth-bound lens)
+
+Re-evaluated sysmem/flushall/GMEM for the emulator RT pattern under the new
+bandwidth-bound understanding: since GMEM tiling saves sysmem bandwidth, could
+flushall (GMEM + per-submit cache flush, also coherent) beat the baseline's
+direct-sysmem? Tested rtbench (v7 UBWC+selective config), device a28c0e0e:
+
+| rtbench size | sysmem (baseline) | flushall | GMEM-only |
+|--------------|-------------------|----------|-----------|
+| 512          | 7761              | 7585     | 7773      |
+| 720          | 3939              | 3893     | 3937      |
+| 1080         | 1738              | 1734     | 1742      |
+
+- flushall is SLOWER than sysmem at every resolution (per-submit flush cost >
+  any GMEM bandwidth saving) - confirms flushall-as-default stays rejected.
+- GMEM-only is TIED with sysmem (within noise) - so sysmem's bandwidth cost vs
+  GMEM tiling is essentially ZERO here, because the RT is UBWC-compressed so both
+  paths move similar bandwidth. The emulator therefore gets sysmem's DXVK/VKD3D
+  render-to-texture COHERENCY for free (no perf penalty vs GMEM), which is exactly
+  why the baseline keeps it. Dropping sysmem for GMEM-only would be equally fast
+  but LOSE coherency (risking DXVK feedback-loop artifacts) - not worth it.
+
+Lever #5 is now definitively closed including this angle: sysmem is optimal for
+the emulator (free coherency), flushall is slower, GMEM-only is a coherency
+downgrade at no speed gain. Baseline v7 unchanged; both drivers remain at optima.
