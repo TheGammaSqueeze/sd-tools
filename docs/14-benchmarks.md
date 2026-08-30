@@ -2901,3 +2901,28 @@ stands. This closes the register-pressure/occupancy avenue that occbench opened.
 Zero drift on any bench; the texbench +2.2x win is intact. v7 remains the shipped
 correctness-safe optimum. Lever space stays exhausted; lever #2 is the only
 renewable source and had nothing new. No new ship candidate.
+
+### Safe-opt tick: lever #1 last sub-knob bank_swizzle_levels - no effect, lever #1 fully exhausted
+
+The prior lever-1 test covered highest_bank_bit and macrotile_mode but not the
+third knob the lever lists: bank_swizzle_levels (a613 default 0x7). Added an
+env-gated GAMMA_SWIZZLE override (same UBWC block as GAMMA_HBB/GAMMA_MACROTILE,
+confirmed applying in logcat) and swept it on the UBWC-sensitive benches (v7
+config, device a28c0e0e):
+
+| bank_swizzle_levels | rtbench | texbench | gfxbench |
+|---------------------|---------|----------|----------|
+| default (0x7)       | 7778    | 1.48     | 72.9     |
+| 0x1                 | 7780    | 1.48     | 72.9     |
+| 0x3                 | 7759    | 1.48     | 72.8     |
+| 0x5                 | 7774    | 1.48     | 72.9     |
+| 0x6                 | 7752    | 1.48     | 72.9     |
+| 0x7 (explicit)      | 7791    | 1.48     | 73.1     |
+
+No effect: rtbench within a ~0.5% noise band (7752-7791), texbench identical 1.48
+at every value, gfxbench 72.8-73.1. No swizzle value beats the kernel-matched
+default, and (like highest_bank_bit/macrotile) any deviation risks corrupting
+UBWC surfaces for zero gain. Lever #1 is now FULLY exhausted across all three
+knobs (highest_bank_bit, macrotile_mode, bank_swizzle_levels) - the a613 UBWC
+layout config has no productive tuning. GAMMA_SWIZZLE kept as a default-off env
+opt-in for future use. v7 stands as the correctness-safe optimum.
