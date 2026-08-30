@@ -2033,3 +2033,17 @@ non-uniform resource access, which the microbenches and native 3DMark do not exe
 Shipped as the new deployed default ULTRA-v6 (16342072), replacing v5. This keeps the driver current
 with upstream ir3 for the DXVK/GameNative target. Device left on v6; canonical selfbuilt driver,
 patch, README and Winlator zip updated.
+
+## GameNative-ubwc refreshed to the v6 base (now includes nir_opt_non_uniform for DXVK)
+
+The GameNative-ubwc emulator variant was built on the v5 base, so it lacked the nir_opt_non_uniform
+pass shipped in ULTRA-v6 - which is precisely the pass that helps DXVK/VKD3D non-uniform resource
+access, the GameNative use case. Rebuilt GameNative-ubwc on the v6 source (bakes fastmath + selective
+fp16 + compute round-robin + UBWC-on + sysmem-on, and now the non-uniform lowering too), driver
+16342072. Bind-mount verified the baked flags with no env:
+- rtbench 512: 8008 passes/s (+40% vs the v6 GMEM default ~5692) - UBWC RT win intact
+- gfxbench 60.2 (neutral), gamebench 14.0 (fp16 kept)
+So emulator users now get the +40% render-to-texture UBWC win AND the DXVK non-uniform-access
+lowering in one variant. Repackaged GameNative-ubwc-v1.adpkg.zip on the v6 base; README updated.
+This is an AdrenoTools import driver (not flashed to /vendor); the device stays on native ULTRA-v6
+(16342072). No native change.
