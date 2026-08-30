@@ -21,7 +21,7 @@
 > rtbench preserved and every other bench flat, device-validated CLEAN on MGS V:
 > Ground Zeroes and MGS4. Artifacts:
 > gpu/turnip-selfbuilt/vulkan.turnip.gamenative_ubwc_nofp16.so +
-> GameNative-ubwc-nofp16-v1.adpkg.zip (md5 73b058a1...), installed in GameNative.
+> GameNative-ubwc-nofp16-v7.adpkg.zip (md5 73b058a1...), installed in GameNative.
 >
 > All six safe levers are now conclusively closed with tool-substantiated evidence
 > (see the dated sections below): (1) UBWC bank/tiling config - all 3 knobs
