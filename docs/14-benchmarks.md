@@ -1705,3 +1705,32 @@ graphics is unaffected. Shipped as ULTRA-v5 (GammaOS-Turnip-Adreno613-ULTRA-v5.a
 driver 16338864). Deployed driver + selfbuilt canonical (vulkan.turnip.ultra_safefp16.so)
 updated. Device left on the working v5 driver. Mesa sources restored to env opt-in (never
 git-checkout - reverse-sed only, as mesa has no committed gamma baseline).
+
+## Vertex fp16 characterized + made geometry-safe (opt-in GAMMA_FP16_VERTEX)
+
+Characterized the vertex-shader forced-fp16 lever (GAMMA_FP16_VERTEX, previously untested)
+on vertbench, GPU pinned 1010 MHz, on the deployed v5 driver via bind-mount:
+- fp32 baseline:                    23.2 - 23.3 GFLOPS (stable across reruns)
+- vertex fp16 (blanket, no guard):  24.0 GFLOPS  (+3.2%)
+So vertex-ALU-bound work gets a small real win from fp16. BUT blanket vertex fp16 demotes
+the clip-space position math too, which loses position precision and cracks / jitters
+geometry (the vertex analogue of the fp16 black-texture failure) - which is why it was
+opt-in and unused.
+
+Fix: extended the selective keep-set (gamma_fp16_build_keep) to also protect the position
+feeder chains in non-fragment stages - VARYING_SLOT_POS (gl_Position), VARYING_SLOT_PSIZ
+(point size) and the clip/cull distance outputs are kept fp32, exactly as FRAG_RESULT_DEPTH
+is protected in the fragment stage. Measured the protected variant:
+- vertex fp16 (position-protected): 24.0 GFLOPS  (+3.2%, identical to blanket)
+The protection is FREE: 24.0 protected == 24.0 blanket, because the position math is a tiny
+fraction of the vertex ALU. So GAMMA_FP16_VERTEX now keeps its throughput win without the
+geometry-corruption risk.
+
+Residual: interpolated texture-coordinate varyings written by the vertex shader are still
+demoted (cross-stage, not protected here), so GAMMA_FP16_VERTEX stays OPT-IN, not a default -
+and it gives ~0 on fragment-bound real titles (Wild Life / WLE), so there is no reason to
+turn it on by default. Value is the now-safe lever for vertex-ALU-bound content. Fragment and
+compute paths are byte-identical (the keep-set refactor only adds the non-fragment branch), so
+the deployed v5 driver is unchanged; no vendor reflash. Source captured in
+turnip-force-fp16.patch; candidate built as vulkan.turnip.vtxfp16safe.so. Deployed driver
+remains selective-fp16 + compute-round-robin v5 (16338864), device left working.

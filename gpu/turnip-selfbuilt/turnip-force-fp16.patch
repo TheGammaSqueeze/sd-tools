@@ -1,8 +1,8 @@
 diff --git a/src/freedreno/ir3/ir3_nir.c b/src/freedreno/ir3/ir3_nir.c
-index a4e65821..b7c717bd 100644
+index a4e65821..915bc1c2 100644
 --- a/src/freedreno/ir3/ir3_nir.c
 +++ b/src/freedreno/ir3/ir3_nir.c
-@@ -287,6 +287,48 @@ ir3_lower_bit_size(const nir_instr *instr, UNUSED void *data)
+@@ -287,6 +287,147 @@ ir3_lower_bit_size(const nir_instr *instr, UNUSED void *data)
        this_progress;                                                           \
     })
  
@@ -30,10 +30,106 @@ index a4e65821..b7c717bd 100644
 +   return progress;
 +}
 +
-+/* GammaOS optional force-fp16 (GAMMA_FP16 env, OFF by default): demote 32-bit float
-+ * ALU in fragment shaders to 16-bit, so it runs on the a6xx half-precision path.
-+ * Lossy (reduced precision) - a "performance mode" for fragment-bound content.
-+ * Derivatives are left 32-bit (fp16 derivatives are too coarse). */
++/* GammaOS force-fp16 (GAMMA_FP16 env): demote 32-bit float ALU in fragment shaders
++ * to 16-bit so it runs on the a6xx half-precision path. Lossy - a "performance mode"
++ * for fragment-bound content. Derivatives are left 32-bit (fp16 derivatives are too
++ * coarse).
++ *
++ * SELECTIVE by default (compatibility): the backward slice feeding texture
++ * coordinates and gl_FragDepth is kept at fp32. Blanket fp16 on texture-coordinate
++ * math loses UV precision and samples the wrong / a black texel (the "black textures"
++ * failure); depth math banding is similar. These chains are a small fraction of the
++ * ALU, so protecting them costs little speed but keeps rendering correct. The old
++ * unconditional behaviour is still available with GAMMA_FP16_UNSAFE. */
++static void
++gamma_fp16_seed(struct set *keep, nir_src *src)
++{
++   _mesa_set_add(keep, nir_def_instr(src->ssa));
++}
++
++static struct set *
++gamma_fp16_build_keep(nir_shader *s)
++{
++   struct set *keep = _mesa_pointer_set_create(NULL);
++
++   /* seed: values feeding texture coordinates / lod / grad / offset, and depth */
++   nir_foreach_function_impl(impl, s) {
++      nir_foreach_block(block, impl) {
++         nir_foreach_instr(instr, block) {
++            if (instr->type == nir_instr_type_tex) {
++               nir_tex_instr *tex = nir_instr_as_tex(instr);
++               for (unsigned i = 0; i < tex->num_srcs; i++) {
++                  switch (tex->src[i].src_type) {
++                  case nir_tex_src_coord:
++                  case nir_tex_src_ddx:
++                  case nir_tex_src_ddy:
++                  case nir_tex_src_lod:
++                  case nir_tex_src_bias:
++                  case nir_tex_src_min_lod:
++                  case nir_tex_src_offset:
++                  case nir_tex_src_projector:
++                     gamma_fp16_seed(keep, &tex->src[i].src);
++                     break;
++                  default:
++                     break;
++                  }
++               }
++            } else if (instr->type == nir_instr_type_intrinsic) {
++               nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
++               if (intr->intrinsic == nir_intrinsic_store_output) {
++                  unsigned loc = nir_intrinsic_io_semantics(intr).location;
++                  bool keep_out;
++                  if (s->info.stage == MESA_SHADER_FRAGMENT) {
++                     /* fragment: protect the depth output feeder chain */
++                     keep_out = (loc == FRAG_RESULT_DEPTH);
++                  } else {
++                     /* vertex / tess / geometry: protect the clip-space position,
++                      * point size and clip/cull distance feeders. fp16 here loses
++                      * position precision and cracks / jitters geometry, the vertex
++                      * analogue of the black-texture failure. */
++                     keep_out = (loc == VARYING_SLOT_POS ||
++                                 loc == VARYING_SLOT_PSIZ ||
++                                 loc == VARYING_SLOT_CLIP_DIST0 ||
++                                 loc == VARYING_SLOT_CLIP_DIST1 ||
++                                 loc == VARYING_SLOT_CULL_DIST0 ||
++                                 loc == VARYING_SLOT_CULL_DIST1);
++                  }
++                  if (keep_out)
++                     gamma_fp16_seed(keep, &intr->src[0]);
++               }
++            }
++         }
++      }
++   }
++
++   /* propagate backward through ALU sources to a fixpoint */
++   bool progress;
++   do {
++      progress = false;
++      nir_foreach_function_impl(impl, s) {
++         nir_foreach_block(block, impl) {
++            nir_foreach_instr(instr, block) {
++               if (instr->type != nir_instr_type_alu)
++                  continue;
++               if (!_mesa_set_search(keep, instr))
++                  continue;
++               nir_alu_instr *alu = nir_instr_as_alu(instr);
++               unsigned n = nir_op_infos[alu->op].num_inputs;
++               for (unsigned i = 0; i < n; i++) {
++                  nir_instr *p = nir_def_instr(alu->src[i].src.ssa);
++                  if (!_mesa_set_search(keep, p)) {
++                     _mesa_set_add(keep, p);
++                     progress = true;
++                  }
++               }
++            }
++         }
++      }
++   } while (progress);
++
++   return keep;
++}
++
 +static unsigned
 +gamma_fp16_bit_size_cb(const nir_instr *instr, void *data)
 +{
@@ -45,13 +141,16 @@ index a4e65821..b7c717bd 100644
 +   const nir_op_info *info = &nir_op_infos[alu->op];
 +   if (nir_alu_type_get_base_type(info->output_type) != nir_type_float)
 +      return 0;
++   const struct set *keep = data;
++   if (keep && _mesa_set_search(keep, instr))
++      return 0; /* texture-coordinate / depth feeder - keep fp32 */
 +   return 16;
 +}
 +
  bool
  ir3_optimize_loop(struct ir3_compiler *compiler,
                    struct ir3_optimize_options *options, nir_shader *s)
-@@ -295,6 +337,13 @@ ir3_optimize_loop(struct ir3_compiler *compiler,
+@@ -295,6 +436,23 @@ ir3_optimize_loop(struct ir3_compiler *compiler,
  
     bool progress;
     bool did_progress = false;
@@ -60,8 +159,26 @@ index a4e65821..b7c717bd 100644
 +      gamma_force_fast_math(s);
 +   if (os_get_option("GAMMA_FP16") &&
 +       (s->info.stage == MESA_SHADER_FRAGMENT ||
-+        (s->info.stage == MESA_SHADER_COMPUTE && os_get_option("GAMMA_FP16_COMPUTE"))))
-+      NIR_PASS(_, s, nir_lower_bit_size, gamma_fp16_bit_size_cb, NULL);
++        (s->info.stage == MESA_SHADER_COMPUTE && os_get_option("GAMMA_FP16_COMPUTE")) ||
++        (s->info.stage == MESA_SHADER_VERTEX && os_get_option("GAMMA_FP16_VERTEX")))) {
++      /* Selective by default: keep the texture-coordinate / depth feeder chains at
++       * fp32 (avoids black textures on translated shaders, e.g. DXVK/RPCS3 content).
++       * GAMMA_FP16_UNSAFE restores the old blanket demotion. */
++      struct set *keep = NULL;
++      if (!os_get_option("GAMMA_FP16_UNSAFE"))
++         keep = gamma_fp16_build_keep(s);
++      NIR_PASS(_, s, nir_lower_bit_size, gamma_fp16_bit_size_cb, keep);
++      if (keep)
++         _mesa_set_destroy(keep, NULL);
++   }
     unsigned lower_flrp = (s->options->lower_flrp16 ? 16 : 0) |
                           (s->options->lower_flrp32 ? 32 : 0) |
                           (s->options->lower_flrp64 ? 64 : 0);
+@@ -399,6 +557,7 @@ ir3_optimize_loop(struct ir3_compiler *compiler,
+    } while (progress);
+ 
+    OPT(s, nir_lower_var_copies);
++
+    return did_progress;
+ }
+ 
