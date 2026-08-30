@@ -2465,3 +2465,28 @@ Next tick: use drawbench to A/B a concrete SAFE submission-path reduction (e.g.
 avoiding redundant per-draw state re-emission when only push constants change),
 ship only if it improves drawbench AND does not regress the GPU microbenches AND
 renders GZ clean AND does not regress MGS4.
+
+### Safe-opt tick: lever #4 draw-path CPU cost decomposed - already optimal, no safe win
+
+Used drawbench (added a vary flag) to split the per-draw CPU cost on the nofp16
+config (device a28c0e0e, 20000 draws):
+
+| mode                                   | us_per_draw | draws_per_s |
+|----------------------------------------|-------------|-------------|
+| vary=1 (push const changes each draw)  | 0.670       | ~1.49M      |
+| vary=0 (unchanged - hits early-exit)   | 0.318       | ~3.14M      |
+
+Reading of tu6_draw_common (tu_cmd_buffer.cc:8506): the per-draw path is fully
+dirty-tracked and already has an early-exit ("nothing to emit, saves CPU cycles",
+line 8600) that HALVES the cost when no state changed (0.670 -> 0.318). The
+0.318us floor is vkCmdDraw's own draw-packet ring emission + validation - core
+required work. The ~0.35us delta above it is the constant/descriptor re-emission
+that only runs when state actually changes (tu_emit_draw_state), which is
+mandatory work for a real per-draw uniform change and unsafe to skip.
+
+Conclusion: Turnip's steady-state recording path is already well optimised - the
+cheap redundant-work wins lever #4 hoped for do not exist here (they are already
+elided by the dirty-tracking + early-exit). No safe, correctness-preserving draw
+submission reduction to ship. drawbench + this floor decomposition are kept for
+any future targeted attempt (e.g. if a specific redundant descriptor rebind is
+ever identified in a real GameNative trace). Lever #4 exhausted (no safe win).

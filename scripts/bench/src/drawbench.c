@@ -20,6 +20,11 @@ static double now(void){ struct timespec t; clock_gettime(CLOCK_MONOTONIC,&t); r
 int main(int argc,char**argv){
   uint32_t DRAWS = argc>1?(uint32_t)atoi(argv[1]):20000;
   uint32_t reps  = argc>2?(uint32_t)atoi(argv[2]):10;
+  // vary=1 (default): change push const each draw so per-draw state re-emits
+  // (worst case). vary=0: push once before the loop so every draw after the
+  // first hits Turnip's "nothing dirty" early-exit - isolates the fixed
+  // per-draw floor (vkCmdDraw ring emission + validation) from state emission.
+  int vary = argc>3?atoi(argv[3]):1;
   const uint32_t W=32,H=32;
 
   VkApplicationInfo ai={.sType=VK_STRUCTURE_TYPE_APPLICATION_INFO,.apiVersion=VK_API_VERSION_1_1};
@@ -105,9 +110,12 @@ int main(int argc,char**argv){
     VK(vkBeginCommandBuffer(cmd,&cbbi));
     vkCmdBeginRenderPass(cmd,&rpbi,VK_SUBPASS_CONTENTS_INLINE);
     vkCmdBindPipeline(cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,pipe);
+    if(!vary){ iters=1; vkCmdPushConstants(cmd,pl,VK_SHADER_STAGE_VERTEX_BIT,0,4,&iters); }
     for(uint32_t d=0;d<DRAWS;d++){
-      iters=(int32_t)(d&3)+1;                       // vary push const so state re-emits
-      vkCmdPushConstants(cmd,pl,VK_SHADER_STAGE_VERTEX_BIT,0,4,&iters);
+      if(vary){                                     // vary push const so state re-emits
+        iters=(int32_t)(d&3)+1;
+        vkCmdPushConstants(cmd,pl,VK_SHADER_STAGE_VERTEX_BIT,0,4,&iters);
+      }
       vkCmdDraw(cmd,3,1,0,0);
     }
     vkCmdEndRenderPass(cmd);
