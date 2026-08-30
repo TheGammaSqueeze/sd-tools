@@ -2562,3 +2562,33 @@ the practical correctness-safe optimum for this hardware; no further safe ship
 candidate is available from the current lever set. Future headroom would require
 a NEW lever (e.g. a per-shader-hash fp16 allowlist proven non-blacking on a real
 GZ trace, or app-specific pipeline tuning) rather than a global config knob.
+
+### Safe-opt tick: UBWC on-vs-off re-A/B - baseline confirmed correct, texbench tradeoff quantified
+
+The tu_util.cc comment says a613 UBWC is a "net loss" (off gained ~7% in 3DMark),
+yet the baseline bakes UBWC ON - re-tested that apparent contradiction directly
+(device a28c0e0e, FASTMATH+SYSMEM, UBWC toggled):
+
+| bench                 | UBWC ON | UBWC OFF | winner   |
+|-----------------------|---------|----------|----------|
+| rtbench (RT bandwidth)| 7753    | 4081     | ON 1.9x  |
+| texbench (sampling)   | 0.71    | 1.48     | OFF 2.1x |
+| gfxbench              | 73.1    | 72.7     | flat     |
+| gamebench (ALU)       | 8.1     | 8.1      | identical|
+| gamebench2 (ALU)      | 11.6    | 11.6     | identical|
+
+Resolves the contradiction: UBWC is strongly workload-dependent. UBWC ON gives a
+1.9x win on render-target bandwidth - exactly the render-to-texture / feedback-
+loop pattern DXVK/VKD3D generate under GameNative - while UBWC OFF wins 2.1x on
+pure texture sampling (the 3DMark Wild Life case the source comment measured).
+ALU-bound benches are unaffected. For the RT-heavy emulator workload the
+baseline's UBWC-ON choice is CORRECT and now quantitatively confirmed; the
+texbench sampling cost is the accepted tradeoff (RT bandwidth dominates DXVK).
+No ship candidate - baseline already optimal for the target workload.
+
+Potential FUTURE lever (multi-tick, deeper + riskier): selective UBWC - keep it
+on colour/depth render targets but disable it for sample-only images - could in
+principle recover the texbench 2x without losing the rtbench 1.9x. Turnip's fdl
+layout heuristic already tries to balance this, but texbench's 2x shows sampled
+textures still pay UBWC decompression. Would need fdl-layout changes + GZ/MGS4
+validation; noted for a future dedicated investigation, not attempted this tick.
