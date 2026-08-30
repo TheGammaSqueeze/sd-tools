@@ -2952,3 +2952,24 @@ UBWC surfaces for zero gain. Lever #1 is now FULLY exhausted across all three
 knobs (highest_bank_bit, macrotile_mode, bank_swizzle_levels) - the a613 UBWC
 layout config has no productive tuning. GAMMA_SWIZZLE kept as a default-off env
 opt-in for future use. v7 stands as the correctness-safe optimum.
+
+### Safe-opt tick: compute round-robin is a HW boolean (no sweep) + selective-UBWC scope characterization
+
+Two findings closing loose ends:
+
+1. Compute round-robin dispatch (baked +5.7% gpubench) - checked whether it has a
+   tunable stride/mode to sweep. It does NOT: COMPUTERRMODEEN is a single boolean
+   bit (a6xx.xml pos=22, type=boolean), driven by round_robin_mode (bool) <-
+   occupancy_bounded_workgroup_fairness. It is on/off only, already optimally ON.
+   No tuning headroom - fully explored.
+
+2. Selective-UBWC (v7 shipped win) scope: ubwc_possible() already returns false
+   for vk_format_is_compressed(format), so BC/ASTC compressed textures never use
+   UBWC regardless. The v7 selective rule (UBWC off for sample-only images) thus
+   only affects UNCOMPRESSED sample-only textures - UI, lightmaps, render-target-
+   derived and dynamic/uncompressed art - which is exactly the texbench (R8G8B8A8)
+   +2.2x case. Compressed game art is unaffected (it was already UBWC-free and
+   samples at native compressed rates). So the shipped win is a strict, lossless
+   improvement on the uncompressed sampled subset with zero effect elsewhere -
+   consistent with the full-suite regression sweep showing no downside. No action;
+   both avenues confirmed closed. v7 stands as the correctness-safe optimum.
