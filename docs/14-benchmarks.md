@@ -2420,3 +2420,25 @@ Per the ship gate (a candidate must first move a microbench), NOT shippable, and
 relaxing occupancy risks regressing latency-hiding on real game shaders. Kept as
 GAMMA_WIDE_WAVE opt-in (default off, does not touch the shipped baseline) for a
 possible future real-title A/B. Lever #3 parked - no microbench-provable win.
+
+### Safe-opt tick: lever #2 mesa main perf cherry-picks - none available (we are current)
+
+Fetched origin/main (depth 200) and scanned HEAD..FETCH_HEAD for
+src/freedreno/ir3 + src/freedreno/vulkan. Only 10 new commits since our base:
+
+- ab3039d6 ir3: Use nir_opt_non_uniform -> ALREADY backported in our tree
+  (ir3_nir.c:1710, cited by commit id).
+- f5f84133 TU_DEBUG=gmem_warmup (preallocate large VSC) -> opt-in warmup latency
+  feature, not steady-state throughput; would not move rtbench/gfxbench.
+- 099ba5d8 / df96a4da -> pure diagnostics (VSC overflow log, autotune reason log).
+- 18574ef1 / 16d8513e / ddd0c551 -> D32S8 sparse image + block-texel view
+  correctness/feature fixes (no perf).
+- b66336c2 (GS safe-const VPC reservation), 75f94f4d (pipeline-library set-layout
+  stitch), f098090d (pipeline-feedback cache-hit bit) -> correctness fixes.
+
+No ir3 scheduler / register-allocator / tiling THROUGHPUT perf commit exists
+since our base, so lever #2 produces no shippable candidate - we are current on
+freedreno perf. Noted for a possible future (non-perf) stability pass: 75f94f4d
+and b66336c2 are DXVK/VKD3D-relevant robustness fixes worth backporting if a
+pipeline-library or geometry-shader corruption is ever seen, but they are out of
+scope for this microbench-gated perf loop. Lever #2 exhausted this cycle.
