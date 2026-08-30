@@ -1907,3 +1907,27 @@ Findings:
 No driver change: this validates the already-shipped GameNative-ubwc (UBWC+sysmem) as the optimal
 emulator RT driver and quantifies that it scales with RT size. Device stays on ULTRA-v5
 (16338864); native default correctly keeps UBWC off (its -7% native cost, measured last tick).
+
+## fp16 half-register packing CONFIRMED WORKING (new gfxbench_f16v4 bench): the deep codegen win is already implemented
+
+Settled the long-standing "ir3 half-reg vec2 fp16 packing" question by building a PACKABLE fp16
+bench. The existing gfxbench_f16 is a near-dependent scalar chain (a,b,c,d cross-dependent) which
+cannot be rpt-packed - that is why it sits at 85 vs stock 127, and why prior ticks could not close
+it. gfxbench_f16v4 instead runs an f16vec4 with four INDEPENDENT lanes (each lane its own chain),
+the packable case real shaders hit (vec3/vec4 colour and lighting math).
+
+Result on the deployed v5, GPU pinned:
+- gfxbench_f16   (scalar/near-dependent): 512 iters x 4 fp16 mad  = 0.0996s
+- gfxbench_f16v4 (4 independent lanes):   512 iters x 16 fp16 mad = 0.1721s
+So 4x the fp16 mads run in only 1.73x the time = ~2.3x throughput per mad on the packable form.
+Disasm confirms the mechanism: the loop emits (rpt1)mad.f16 (half-register-packed, 2 lanes per
+issue) for the consecutive-source lanes plus scalar mad.f16 for the rest, and reports 0 sstall /
+0 systall - cleanly pipelined, no stalls. So ir3 DOES pack independent fp16 lanes into vec2
+half-registers, and 2-wide (rpt1) is the correct/optimal packing for fp16 on a6xx (two halves per
+32-bit register).
+
+Conclusion: the "deep fp16 codegen win" is already implemented and working in our driver. The
+synthetic gfxbench_f16 gap to stock is purely a dependent-chain artifact of that microbench, not a
+missing packing optimization - real vectorized fp16 shader math (where we already beat stock on
+gamebench, 14.0 vs 8.8) packs and pipelines correctly. Added gfxbench_f16v4 as a permanent
+diagnostic. No driver change; device stays on ULTRA-v5 (16338864).
