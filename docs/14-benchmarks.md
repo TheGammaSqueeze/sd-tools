@@ -1878,3 +1878,32 @@ Decision: compute fp16 stays OPT-IN (GAMMA_FP16_COMPUTE) and in the experimental
 GameNative-maxfp16 variant only, never a default. Native default remains ULTRA-v5 (16338864).
 Reflashed the device back to v5, verified booted on the working driver. Mesa source restored to
 opt-in. Recorded with a screenshot so this is not re-attempted as a default.
+
+## GameNative RT lever matrix across sizes: UBWC+sysmem optimal, benefit GROWS with RT size
+
+Ran the full emulator render-to-texture lever matrix on the deployed v5 (env levers, no flash) at
+two RT sizes to settle the definitive GameNative recommendation and check how UBWC scales:
+
+| config              | RT 512 (passes/s) | RT 1024 (passes/s) |
+|---------------------|------------------:|-------------------:|
+| GMEM (default)      | 5548              | 1414               |
+| UBWC                | 7987 (+44%)       | 2069 (+46%)        |
+| UBWC + SYSMEM       | 8018 (+44.5%)     | 2072 (+46.5%)      |
+| UBWC + FLUSHALL     | 7875 (+42%)       | 2054 (+45%)        |
+| SYSMEM alone        | 5502 (-0.8%)      | 1395 (-1.3%)       |
+
+Findings:
+- UBWC is the dominant RT lever (+44% at 512, +46% at 1024). The win GROWS with render-target
+  size because larger RTs are more bandwidth-bound - so at real emulator game resolutions
+  (720p-1080p render targets, bigger than these squares) UBWC should help at least as much,
+  strengthening the case for RT/post-process-heavy titles like MGS4.
+- UBWC+SYSMEM is marginally the best combo (8018 / 2072), sysmem adding ~0.4% on top of UBWC.
+  This is exactly what GameNative-ubwc-v1 bakes, so that shipped variant is confirmed optimal.
+- UBWC+FLUSHALL is slightly worse than UBWC+SYSMEM at both sizes (flushall's per-submit cost),
+  so sysmem is the right coherency partner for UBWC, not flushall.
+- SYSMEM alone (no UBWC) is neutral-to-slightly-negative on this RT pattern; its value is
+  coherency for titles that need direct-to-sysmem, not raw RT throughput.
+
+No driver change: this validates the already-shipped GameNative-ubwc (UBWC+sysmem) as the optimal
+emulator RT driver and quantifies that it scales with RT size. Device stays on ULTRA-v5
+(16338864); native default correctly keeps UBWC off (its -7% native cost, measured last tick).
