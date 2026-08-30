@@ -1,5 +1,5 @@
 diff --git a/src/freedreno/ir3/ir3_nir.c b/src/freedreno/ir3/ir3_nir.c
-index a4e65821..915bc1c2 100644
+index a4e65821..9c6a933b 100644
 --- a/src/freedreno/ir3/ir3_nir.c
 +++ b/src/freedreno/ir3/ir3_nir.c
 @@ -287,6 +287,147 @@ ir3_lower_bit_size(const nir_instr *instr, UNUSED void *data)
@@ -182,3 +182,25 @@ index a4e65821..915bc1c2 100644
     return did_progress;
  }
  
+@@ -1523,6 +1682,21 @@ ir3_nir_lower_variant(struct ir3_shader_variant *so,
+       }
+    }
+ 
++   /* GammaOS: backport of upstream ab3039d6 "ir3: Use nir_opt_non_uniform" -
++    * lower non-uniform UBO/SSBO/texture/image access. Helps DXVK/VKD3D fossils and
++    * some native VK titles (Talos, Doom 2016, ROTTR) with dynamic descriptor
++    * indexing; safe and upstream-validated. */
++   const enum nir_lower_non_uniform_access_type non_uniform_access_types =
++      nir_lower_non_uniform_ubo_access | nir_lower_non_uniform_ssbo_access |
++      nir_lower_non_uniform_get_ssbo_size |
++      nir_lower_non_uniform_texture_access |
++      nir_lower_non_uniform_texture_offset_access |
++      nir_lower_non_uniform_texture_query | nir_lower_non_uniform_image_access |
++      nir_lower_non_uniform_image_query;
++
++   if (nir_has_non_uniform_access(s, non_uniform_access_types))
++      progress |= OPT(s, nir_opt_non_uniform_access);
++
+    /* Move large constant variables to the constants attached to the NIR
+     * shader, which we will upload in the immediates range.  This generates
+     * amuls, so we need to clean those up after.

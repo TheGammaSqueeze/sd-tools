@@ -9,8 +9,8 @@ SG4250P, stock clock 1010 MHz) and documented in `docs/14-benchmarks.md`.
 
 | Zip | Build | Notes |
 |-----|-------|-------|
-| `GammaOS-Turnip-Adreno613-ULTRA-v5.adpkg.zip` | selective fp16 + compute round-robin | **Recommended - the shipped GammaOS driver.** dw_noubwc (multiview VK1.3 + 128-wide waves + UBWC-off) + FMA reassociation + selective forced fp16 (texture-coord/depth chains kept fp32 so textures do NOT go black) + round-robin compute-workgroup dispatch (+5.7% on compute, graphics-neutral, correctness-safe; opt out with `GAMMA_NO_COMPUTE_RR`). Fast and renders correctly. |
-| `GammaOS-Turnip-Adreno613-ULTRA-v4.adpkg.zip` | selective fp16 | **Superseded by v5.** Same as v5 without the compute round-robin dispatch. |
+| `GammaOS-Turnip-Adreno613-ULTRA-v6.adpkg.zip` | v5 + non-uniform-access lowering | **Recommended - the shipped GammaOS driver.** Everything in v5 (dw_noubwc VK1.3 + 128-wide waves + UBWC-off + FMA reassociation + selective forced fp16 + compute round-robin) plus the upstream `nir_opt_non_uniform_access` pass, which lowers non-uniform UBO/SSBO/texture/image access for DXVK/VKD3D and some native VK titles (dynamic descriptor indexing). Neutral on native content (3DMark WL 648 / WLE 177, unchanged, renders clean); helps translation-layer content with non-uniform resource access. |
+| `GammaOS-Turnip-Adreno613-ULTRA-v5.adpkg.zip` | selective fp16 + compute round-robin | **Superseded by v6.** Same as v6 without the non-uniform-access lowering. dw_noubwc + FMA reassociation + selective forced fp16 + round-robin compute dispatch. |
 | `GammaOS-Turnip-Adreno613-GameNative-ubwc-v1.adpkg.zip` | ULTRA-v5 + UBWC + sysmem | **For emulators - best for render-to-texture-heavy titles.** Re-enables UBWC framebuffer compression (lossless) plus direct-to-sysmem. Measured +43% on the multi-pass render-to-texture benchmark (5680 -> 8118 passes/s) that models DXVK/VKD3D/RPCS3 post-process and render-target chains (bloom/SSAO/tonemap, e.g. MGS4). UBWC costs 5-7% on native tiled titles (measured 3DMark: Wild Life 649 -> 603, Wild Life Extreme 178 -> 170) so it is emulator-only, not the shipped default. Correctness-safe (UBWC is lossless). |
 | `GammaOS-Turnip-Adreno613-GameNative-sysmem-v1.adpkg.zip` | ULTRA-v4 + sysmem | **For emulators - try this first.** Renders direct-to-sysmem (bypasses GMEM tiling), a coherency fix for DXVK/VKD3D/RPCS3 render-to-texture. Only ~2% slower than default on real titles. |
 | `GammaOS-Turnip-Adreno613-GameNative-flushall-v1.adpkg.zip` | ULTRA-v4 + flushall | **For emulators - fallback.** Stronger per-submit cache-flush workaround; use only if sysmem still corrupts (fixes some titles sysmem can't). Costs ~10% on real titles, so prefer sysmem. |
@@ -19,7 +19,7 @@ SG4250P, stock clock 1010 MHz) and documented in `docs/14-benchmarks.md`.
 | `GammaOS-Turnip-Adreno613-ULTRA-v1.adpkg.zip` | blanket fp16 | **Superseded.** Forces fp16 on ALL fragment math including texture coordinates -> black textures on some content (e.g. MGS4). Use ULTRA-v4 (selective) instead. |
 | `GammaOS-Turnip-Adreno613-ULTRA-v3.adpkg.zip` | + pow-squaring | **DEPRECATED - do not use.** `pow()` repeated-squaring flickers / blacks textures (fp16 overflow to inf/NaN for bases >1). |
 
-**Use ULTRA-v5** (selective fp16 + compute round-robin, driver 16338864) for general use - it
+**Use ULTRA-v6** (v5 + non-uniform-access lowering, driver 16342072) for general use - it
 is the shipped GammaOS driver. For emulators (GameNative/Winlator running DXVK/VKD3D/RPCS3, e.g. MGS4)
 use the GameNative-sysmem variant first (only ~2% slower than default); fall back to GameNative-flushall (~10% slower) only if sysmem still corrupts. The older blanket-fp16 ULTRA-v1/v2
 (16330280) and the pow-squaring ULTRA-v3 both cause black textures and are superseded.

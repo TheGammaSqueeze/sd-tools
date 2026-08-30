@@ -2010,3 +2010,26 @@ its UBWC compression state is invalid and sampling UBWC-flagged-but-uncompressed
 valid measure of UBWC's effect on real (properly uploaded/compressed) textures. Noting it as
 inconclusive rather than a finding; a valid test would need a staging-buffer upload with a UBWC
 resolve, out of scope for the microbench. Device stays on ULTRA-v5.
+
+## Mesa-main survey + shipped ULTRA-v6 (backport nir_opt_non_uniform for DXVK non-uniform access)
+
+Surveyed Mesa main vs our 3-day-old base (HEAD 2026-08-27): only 66 commits total, 10 touching
+freedreno, and almost all are bug fixes (D32S8 sparse, pipeline-library stitching, GS state
+reservation) or diagnostics (VSC overflow logging, autotune logging, TU_DEBUG=gmem_warmup - a
+perf-test VSC-warmup aid that does not help steady-state 3DMark which self-warms over 60s). So we
+are already current with upstream ir3 - no rebase warranted. The one genuinely codegen-relevant
+commit is ab3039d6 "ir3: Use nir_opt_non_uniform", which lowers non-uniform UBO/SSBO/texture/image
+access - it triggers on DXVK/VKD3D fossils and native titles (Talos, Doom 2016, ROTTR) with dynamic
+descriptor indexing, directly on-goal for GameNative.
+
+Backported it (gated by nir_has_non_uniform_access so it is a no-op on uniform-access shaders).
+Verified via bind-mount: suite is neutral (gamebench 14.0, gfxbench 60.2, gpubench 55.4, rtbench
+5751 - all baseline), as expected since the microbenches use uniform access. Built ULTRA-v6 (v5 +
+this pass, driver 16342072), flashed, and 3DMark-validated: Wild Life 648 (baseline 650), Wild Life
+Extreme 177 (baseline 179) - both within variance and screenshot-verified rendering clean (no black
+textures, no corruption). No native regression; the benefit is for translation-layer content with
+non-uniform resource access, which the microbenches and native 3DMark do not exercise.
+
+Shipped as the new deployed default ULTRA-v6 (16342072), replacing v5. This keeps the driver current
+with upstream ir3 for the DXVK/GameNative target. Device left on v6; canonical selfbuilt driver,
+patch, README and Winlator zip updated.
