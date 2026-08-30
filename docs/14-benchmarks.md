@@ -1949,3 +1949,24 @@ This completes a sweep of the common DXVK/D3D shader patterns, all confirmed alr
 driver: fp16 vec2 half-register packing (gfxbench_f16v4, prior tick), saturate->(sat) (this tick),
 full nir_fp_fast_math reassociation, and preamble constant hoisting. No native-side compiler win
 remains from these. Added gb_sat as a permanent diagnostic. No driver change; device on ULTRA-v5.
+
+## Texture-sampling path profiled (new texbench): Turnip LEADS stock (+9.6%), so WL gap is NOT texturing
+
+Wild Life is texture-bound and we trail stock there (649 vs 700), so the hypothesis was that our
+texture-unit / sampler path is slower. Built texbench (a real GPU texture bench: fullscreen quad
+whose fragment shader trilinear-samples a mipmapped 1024x1024 texture 2x per pixel across a loop -
+combined image sampler, mip chain, LINEAR/LINEAR/REPEAT sampler, descriptor set), the first
+texture-path bench in the suite (membench is CPU DDR only). Measured 1920x1080, GPU pinned, v5 vs
+the bind-mounted stock blob:
+- Turnip v5:  1.48 Gtexels/s (0.720s)
+- stock blob: 1.35 Gtexels/s (0.786s)
+So Turnip is +9.6% FASTER than stock on trilinear texture sampling. Texturing is NOT our weakness -
+we lead stock there. That rules texturing out as the cause of the Wild Life deficit; the WL gap
+must be elsewhere in the full-scene pipeline (GMEM tile store/load for the 1440p target, geometry/
+overdraw, render-pass mix) - and note UBWC-on (framebuffer compression) made WL worse not better
+last tick, so it is not framebuffer UBWC either. The remaining WL gap is a sum of small full-scene
+pipeline differences, not a single addressable lever.
+
+Added texbench as a permanent diagnostic (enables future texture-LOD / filtering experiments). No
+driver change; device on ULTRA-v5 (16338864). Positive: our texture path already beats the
+proprietary blob.
