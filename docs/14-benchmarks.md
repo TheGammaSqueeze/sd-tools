@@ -2771,3 +2771,17 @@ essentially zero real-frame improvement while needing a vertex-only fp16 gate
 (currently GAMMA_FP16 enables fragment too) plus full GZ/MGS4 validation. Not
 worth pursuing - ruled out cheaply without a build. Confirms the exhaustion
 conclusion: no remaining lever offers a worthwhile safe win; v7 stands.
+
+### Safe-opt tick: lever #2 re-poll upstream Mesa - still current, no new freedreno perf
+
+Re-fetched origin/main (advanced 80f5c917..29c5f0ad since the last poll) and
+rescanned HEAD..FETCH_HEAD for src/freedreno/ir3 + src/freedreno/vulkan. The new
+mesa commits landed in OTHER subsystems - the freedreno set is the identical 10
+already analysed. Newest freedreno commit in origin/main is f5f84133 (2026-08-28,
+gmem_warmup TU_DEBUG opt-in - warmup latency, not throughput). The only ir3
+commit (ab3039d6 nir_opt_non_uniform) is already backported in our tree; the rest
+are diagnostics + correctness fixes. No new freedreno ir3 scheduler/RA/tiling
+throughput perf commit since our base (2026-08-27). We remain current; lever #2
+yields nothing new this cycle. Lever #2 is the one renewable lever - worth
+re-polling periodically as upstream lands new freedreno work; nothing actionable
+today. v7 stands as the shipped optimum.
