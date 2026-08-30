@@ -51,6 +51,15 @@
 > upstream current). NOT flashed, untouched. Lesson: rtbench microbench predicted
 > the OPPOSITE of the 3DMark result for native - real-title validation was
 > decisive. 3DMark harness (score via fm_local_results.db, tab-nav) reusable.
+> ROOT CAUSE (the deepest finding, explains everything): a613 native 3DMark is
+> MEMORY-BANDWIDTH-BOUND, not ALU-bound - proven by fp16 being NEUTRAL on Wild
+> Life (645 off vs 648 on) while UBWC (a bandwidth feature) is decisive. This
+> single fact explains why UBWC-off wins, why selective UBWC regresses, why fp16
+> is neutral, and why wide-waves give nothing on native: the GPU is waiting on
+> memory, not compute. Therefore NO safe driver-level lever can raise the native
+> score - the ceiling is hardware DRAM bandwidth (consistent with the GPU-OC wall
+> at 1010). System-driver expansion CONCLUDED: ULTRA-v6 is at the bandwidth
+> ceiling, nothing safe left to try.
 
 Goal: push GPU / CPU / MEMORY as high as possible while staying stable, measured
 against a stock-max baseline. Device runs GammaOS Next Lite (rooted). All runs
