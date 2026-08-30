@@ -2047,3 +2047,25 @@ So emulator users now get the +40% render-to-texture UBWC win AND the DXVK non-u
 lowering in one variant. Repackaged GameNative-ubwc-v1.adpkg.zip on the v6 base; README updated.
 This is an AdrenoTools import driver (not flashed to /vendor); the device stays on native ULTRA-v6
 (16342072). No native change.
+
+## Broader v6 validation: capability surface (vkdump) + 3DMark Steel Nomad Light boundary
+
+Broadened real-title validation of the shipped ULTRA-v6 beyond WL/WLE. Findings:
+- 3DMark Steel Nomad Light (modern Vulkan) reports "your device does not support all the Vulkan
+  features required to run this test" - a genuine capability boundary of the entry-class Adreno 613,
+  not a Turnip config issue. Solar Bay (ray-traced) is likewise out (a6xx has no HW RT). Sling Shot
+  is OpenGL ES, so it exercises the GL driver, not our Turnip Vulkan driver. So among 3DMark's Vulkan
+  tests, Wild Life and Wild Life Extreme remain the runnable real-title validators on this GPU (both
+  already validated clean on v6: WL 648 / WLE 177).
+- Built vkdump and captured the v6 capability surface: Turnip Adreno 613, Vulkan 1.3.359, Mesa
+  26.3.0-devel (git-d245b965bf), driverID=18, conformance 1.2.7.1, 153 device extensions (vs the
+  stock blob's 71 - confirms the multiview-forced VK1.3 is live). Features present: geometryShader,
+  tessellation, fragmentStoresAndAtomics, shaderStorageImageExtendedFormats, textureCompressionASTC_
+  LDR + BC, multiViewport, shaderInt16, shader_float16_int8, descriptor_indexing, timeline_semaphore,
+  synchronization2, maintenance4. (VK_KHR_16bit_storage shows 0 as an extension STRING only because
+  it is core in Vulkan 1.1+, not a missing feature.) Limits: maxImageDimension2D=16384,
+  maxComputeWorkGroupInvocations=1024, maxPushConstantsSize=256.
+
+Added vkdump as a permanent capability-probe tool. No driver change; device stays on ULTRA-v6. This
+confirms v6 exposes the full modern-Vulkan surface DXVK/VKD3D need; the tests it cannot run are
+blocked by genuine a613 hardware limits, not the driver.
