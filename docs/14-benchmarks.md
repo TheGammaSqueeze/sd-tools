@@ -2442,3 +2442,26 @@ freedreno perf. Noted for a possible future (non-perf) stability pass: 75f94f4d
 and b66336c2 are DXVK/VKD3D-relevant robustness fixes worth backporting if a
 pipeline-library or geometry-shader corruption is ever seen, but they are out of
 scope for this microbench-gated perf loop. Lever #2 exhausted this cycle.
+
+### Safe-opt tick: lever #4 groundwork - drawbench CPU-submission microbench (tool built)
+
+Lever #4 (draw/command-submission CPU-overhead reduction) had no measurement:
+every existing bench submits one big command buffer and vkQueueWaitIdle, so they
+time GPU throughput, not the driver's per-draw CPU cost. Built a dedicated tool,
+scripts/bench/src/drawbench.c: re-records DRAWS tiny draws per frame (each with a
+push-constant change so per-draw state re-emits) into a 32x32 RT with a trivial
+3-vertex triangle - GPU work negligible, so wall-clock is dominated by Turnip's
+command-recording / state-emission CPU path. Governor-independent (pure CPU).
+
+Baseline on the current nofp16 config (UBWC+SYSMEM+FASTMATH), device a28c0e0e:
+
+| draws  | draws_per_s | us_per_draw |
+|--------|-------------|-------------|
+| 20000  | ~1.49M      | 0.673       |
+| 40000  | ~1.52M      | 0.656       |
+
+Stable across 3 runs (1476k-1494k) and linear in draw count - a usable signal.
+Next tick: use drawbench to A/B a concrete SAFE submission-path reduction (e.g.
+avoiding redundant per-draw state re-emission when only push constants change),
+ship only if it improves drawbench AND does not regress the GPU microbenches AND
+renders GZ clean AND does not regress MGS4.
