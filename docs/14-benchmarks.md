@@ -3202,3 +3202,24 @@ optima (emulator: microbench+GZ/MGS4; system: 3DMark, bandwidth-ceiling). No new
 safe ship candidate exists. Loop remains in steady state pending a new upstream
 freedreno perf commit or a new user directive; next action is another periodic
 upstream re-poll + integrity guard.
+
+### Characterized the last two GAMMA env knobs: GAMMA_PERF / GAMMA_LODBIAS - quality tradeoffs, out of safe scope
+
+Two GAMMA env knobs had never been characterized. Both are QUALITY-vs-performance
+tradeoffs, off by default, NOT precision-preserving - so they fall OUTSIDE this
+loop's "safe, lossless, correctness-safe" mandate and are correctly absent from
+the shipped drivers:
+- GAMMA_PERF (tu_sampler.cc): clamps anisotropic filtering OFF and biases mip
+  selection up (+0.5 min_lod), trading texture sharpness for TP/bandwidth. On
+  texbench it did NOT help (1.47 -> 1.29, slightly slower) - its aniso-off benefit
+  only appears on content that USES anisotropic filtering (tilted real-game
+  surfaces), which the microbench does not, while the mip-bias clamp adds cost.
+- GAMMA_LODBIAS (tu_sampler.cc): user LOD-bias override - also a sharpness/
+  bandwidth quality knob.
+Given the bandwidth-bound hardware, a user COULD opt into GAMMA_PERF to trade
+texture quality for FPS in aniso-heavy real games, but it is a visible quality
+change and thus never a safe-loop ship candidate. This completes the GAMMA env
+knob enumeration - every knob is now characterized; the only ones with real perf
+effect that are ALSO lossless are already baked into the shipped drivers
+(fastmath, UBWC-selective, sysmem, compute-RR, nir_opt_non_uniform). Nothing new
+to ship; both drivers remain at their safe optima.
