@@ -2395,3 +2395,28 @@ Sysmem-on is marginally FASTER on the RT microbench (+0.5%, within run noise)
 and identical on gfxbench. Turning sysmem off gives no gain and would forfeit
 the emulator RT/feedback-loop coherency the "A12 fix" drivers rely on. Baseline
 keeps sysmem on. Lever #5 ruled out - no ship candidate.
+
+### Safe-opt tick: lever #3 fragment/compute wave-occupancy (GAMMA_WIDE_WAVE) - no microbench signal
+
+ir3_should_double_threadsize (ir3.c ~233) gives non-fp16 FS/compute the doubled
+threadsize only when regs_count*2 <= reg_size_vec4/4 (keep max_waves >= 8, a
+sweet spot tuned on X1-85). Added an env-gated relaxation to reg_size_vec4/2
+(>= 4 waves) so more high-register shaders get the wider wave (more per-wave ALU)
+at the cost of fewer waves for latency hiding. Pure wave-size scheduling -
+precision-safe, no math change. A/B on the same .so (nofp16 config, GPU 1010):
+
+| bench      | baseline (>=8) | WIDE_WAVE (>=4) |
+|------------|----------------|-----------------|
+| gfxbench   | 73.1 gflops    | 72.9            |
+| gamebench  | 8.1            | 8.1             |
+| gamebench2 | 11.6           | 11.6            |
+| rtbench    | 7762 passes/s  | 7759            |
+| texbench   | 0.71 gtex/s    | 0.71            |
+
+All within run noise. The microbench shaders sit at low register pressure and
+never land in the threshold window (reg_size_vec4/4 .. /2) where the knob
+actually changes the chosen wavesize, so the microbench cannot discriminate it.
+Per the ship gate (a candidate must first move a microbench), NOT shippable, and
+relaxing occupancy risks regressing latency-hiding on real game shaders. Kept as
+GAMMA_WIDE_WAVE opt-in (default off, does not touch the shipped baseline) for a
+possible future real-title A/B. Lever #3 parked - no microbench-provable win.
