@@ -2749,3 +2749,25 @@ emulator RT/feedback coherency the A12-fix relies on). Lever #5's last untested
 dimension (higher resolutions) is closed - no shippable win, verdict is
 resolution-independent. All six levers + the UBWC sub-space are now fully
 exhausted; v7 (shipped) stands as the correctness-safe optimum.
+
+### Safe-opt tick: vertex fp16 ceiling - negligible (~3-4%), not worth pursuing
+
+The loop only ever tested FRAGMENT fp16 (which blacks GZ). Vertex is a separate
+precision domain (position/interpolants, not the material/lighting math that
+fails), so vertex fp16 could in principle be safe. Measured its ceiling on
+vertbench (fragment-fp16 blacking is irrelevant there - it renders 32x32 and
+measures only vertex throughput), v7 config:
+
+| vertbench          | nofp16      | vertex fp16 |
+|--------------------|-------------|-------------|
+| default iters      | 25.9 mvert/s| 26.9 (+3.9%)|
+| heavy ALU iters=256| 6.6 mvert/s | 6.8 (+3%)   |
+
+Only ~3-4% even at heavy vertex-ALU load - far below fragment fp16's +73-84%.
+Vertex work is already efficient on a6xx, the position/interpolant keep-set
+protects most of it, and vertex throughput is not the bottleneck for the
+fragment/CPU-bound target titles (GZ/MGS4). A ~3% vertbench gain would be
+essentially zero real-frame improvement while needing a vertex-only fp16 gate
+(currently GAMMA_FP16 enables fragment too) plus full GZ/MGS4 validation. Not
+worth pursuing - ruled out cheaply without a build. Confirms the exhaustion
+conclusion: no remaining lever offers a worthwhile safe win; v7 stands.
