@@ -3115,3 +3115,30 @@ microbench MISLED here; 3DMark real-title validation was essential and overrode
 it. (This does NOT affect the emulator driver: emulation IS the rtbench-like
 render-to-texture pattern, where selective UBWC genuinely wins - v7 stays shipped.)
 Candidates _sysdrv_native_{base,sel}.so discarded.
+
+### Tick 3: Wild Life Extreme (4K) confirms it - selective UBWC regresses native at every workload
+
+Ran Wild Life Extreme (3840x2160 4K UHD, the heaviest / most RT-bandwidth-intensive
+native test) on BASE vs SEL via bind-mount. Combined with tick 2:
+
+| 3DMark test              | BASE (UBWC off) | SEL (selective UBWC) | delta |
+|--------------------------|-----------------|----------------------|-------|
+| Wild Life (2560x1440)    | 648             | 609                  | -6.0% |
+| Wild Life Extreme (4K)   | 176             | 171                  | -2.8% |
+
+Both native tests REGRESS with selective UBWC, at both 1440p and 4K. Even at 4K -
+where render targets are largest and UBWC's RT-bandwidth saving would be most
+valuable - selective UBWC still loses. The a613 UBWC compress/decompress overhead
+exceeds its bandwidth saving across the ENTIRE native workload range.
+
+FINAL system-driver conclusion (user-approved expansion complete): the system
+/vendor driver ULTRA-v6 (UBWC OFF) is OPTIMAL for native content. Selective UBWC -
+which wins big on the emulator RT-pattern microbench and is correctly shipped in
+the emulator nofp16 v7 - is a NET LOSS on real native 3DMark and must NOT be
+applied to /vendor. No flash performed; system driver untouched (16342072). The
+two drivers' opposite UBWC choices are each correct for their workload:
+  - Emulator (DXVK/VKD3D render-to-texture, rtbench-like): selective UBWC WINS -> shipped v7.
+  - Native (3DMark / native games, sampling + single-pass RT): UBWC OFF wins -> ULTRA-v6.
+Key methodological lesson: the rtbench microbench predicted the OPPOSITE of the
+3DMark real-title result for native content; real-title validation was decisive.
+Device candidates removed; /vendor and emulator drivers both at their optima.
