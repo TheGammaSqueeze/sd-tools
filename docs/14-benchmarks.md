@@ -1828,3 +1828,28 @@ screenshot-verified rendering clean (no black textures):
 - Wild Life:         649 (3.89 fps)   [was 650]
 - Wild Life Extreme: 178 (1.07 fps)   [was 179]
 Deployed ULTRA-v5 (16338864) confirmed stable and correct. Device left on the working driver.
+
+## UBWC native cost measured on current v5 (WL -7.1% / WLE -4.5%): confirms GameNative-only, not default
+
+Tested whether UBWC-on could become the shipped native default, given its +43% emulator
+render-to-texture win (last tick). Built a clean ULTRA+UBWC-on driver (no sysmem, to isolate
+UBWC, 16338840), flashed it to /vendor, and ran real 3DMark vs the deployed v5 (UBWC off):
+
+| test               | v5 (UBWC off) | ULTRA+UBWC on | delta |
+|--------------------|--------------:|--------------:|------:|
+| Wild Life          | 649           | 603           | -7.1% |
+| Wild Life Extreme  | 178           | 170           | -4.5% |
+
+Both screenshot-verified rendering clean (UBWC is lossless, so no corruption - only a bandwidth
+tradeoff). The native cost precisely matches the historical figure (WL 648->606 ~-7%). So UBWC-on
+is confirmed NOT viable as the native default: it costs 5-7% on native tiled titles while giving
++43% only on the emulator RT-pingpong pattern. Decision stands: UBWC stays in the GameNative-ubwc
+variant (imported into Winlator/GameNative for RT/post-process-heavy titles like MGS4), and the
+shipped native default remains ULTRA-v5 (UBWC off, 16338864). Reflashed the device back to v5;
+device verified booted on the working driver. This closes the "should UBWC be default" question
+with current-driver real-title numbers rather than the stale note.
+
+Also this tick: confirmed the transcendental benches (gb_exp 12.5 / gb_trig 9.8 / gb_sqrt 10.6)
+are SFU-THROUGHPUT-bound, not occupancy-bound - wave64 (16 waves) == wave128 (8 waves) on all
+three (identical to the µs), so the 9 cat4 SFU ops per fragment saturate the SFU and more waves
+cannot help. Another hardware ceiling, not a compiler lever.
