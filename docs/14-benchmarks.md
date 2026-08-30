@@ -2236,3 +2236,21 @@ both screenshot-verified rendering clean (no black textures, all surfaces textur
 - Wild Life:         650 (3.89 fps)   [baseline 650, exact]
 - Wild Life Extreme: 179 (1.07 fps)   [baseline 179, exact]
 Deployed v6 confirmed stable and correct - no drift. Device on ULTRA-v6 (16342072).
+
+## GameNative-ubwc-v6 visually validated on real 3D (renders clean) + README updated to v6
+
+Flashed the shipped GameNative-ubwc-v6 emulator variant (UBWC + sysmem + fp16 + compute round-robin
++ non-uniform, 16342072) and 3DMark-validated it on real 3D content (it had only been
+microbench/rtbench-verified before): Wild Life 600 and Wild Life Extreme 170, both
+screenshot-verified rendering CLEANLY - no black textures, no corruption, all surfaces correctly
+textured. The native scores are ~5-8% below the native ULTRA-v6 (650/179) as expected from the
+UBWC+sysmem native cost, but the variant's value is on emulator render-to-texture (+43% rtbench),
+not native. So the UBWC+sysmem combination is confirmed visually correct for users importing it into
+Winlator/GameNative. Reflashed the device back to native ULTRA-v6 and verified via rtbench (5508
+GMEM, not UBWC's ~8000) that the native default is restored.
+
+Also updated gpu/turnip-dist/README.md to ULTRA-v6: added the non-uniform-access feature bullet,
+refreshed the recommended-driver test-results section with the full ULTRA-v6-vs-stock comparison
+(gamebench +59%, gamebench2 +84%, texbench +9.6%, gpubench_dd parity, gfxbench synthetic -23%), the
+constant-fold compute footnote, and corrected the residual v4 references. Device on ULTRA-v6
+(16342072).
