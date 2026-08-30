@@ -19,6 +19,7 @@ static double now(void){ struct timespec t; clock_gettime(CLOCK_MONOTONIC,&t); r
 int main(int argc,char**argv){
   uint32_t DRAWS = argc>1?(uint32_t)atoi(argv[1]):20000;
   uint32_t reps  = argc>2?(uint32_t)atoi(argv[2]):10;
+  int mode = argc>3?atoi(argv[3]):0; // 0=both viewport+scissor, 1=viewport only, 2=scissor only
   const uint32_t W=32,H=32;
 
   VkApplicationInfo ai={.sType=VK_STRUCTURE_TYPE_APPLICATION_INFO,.apiVersion=VK_API_VERSION_1_1};
@@ -135,8 +136,8 @@ int main(int argc,char**argv){
       /* per-draw dynamic-state churn (viewport + scissor), the DXVK hot path */
       VkViewport dvp={0,0,(float)(W-(d&1)),(float)H,0,1};
       VkRect2D dsc={{0,0},{W-(d&1),H}};
-      vkCmdSetViewport(cmd,0,1,&dvp);
-      vkCmdSetScissor(cmd,0,1,&dsc);
+      if(mode!=2) vkCmdSetViewport(cmd,0,1,&dvp);
+      if(mode!=1) vkCmdSetScissor(cmd,0,1,&dsc);
       vkCmdDraw(cmd,3,1,0,0);
     }
     vkCmdEndRenderPass(cmd);

@@ -3316,3 +3316,26 @@ descbench/drawbench cost. So lever #4 is now FULLY characterized across all thre
 per-draw hot paths (pushconst + descriptor + dynstate) and fully closed: the
 recording path is optimally dirty-tracked, all residual cost is necessary work.
 dynbench kept as a durable tool (auto-built by build_benches.sh). v7 unchanged.
+
+### Lever #4 dynbench follow-up: viewport/scissor independently tracked - no coupling redundancy (path optimal)
+
+The dynbench finding (dynstate dominates per-draw CPU) suggested a possible win:
+if Turnip re-emits BOTH viewport and scissor when only ONE changes, that coupling
+could be safely decoupled. Added a mode arg to dynbench (0=both, 1=viewport-only,
+2=scissor-only) to test. v7 config, device a28c0e0e:
+
+| config                    | us_per_draw | delta over descbench |
+|---------------------------|-------------|----------------------|
+| descbench (no dynstate)   | 0.563       | -                    |
+| viewport-only churn       | 0.935       | +0.372               |
+| scissor-only churn        | 0.670       | +0.107               |
+| both viewport+scissor     | 1.017       | +0.454 (~ additive)  |
+
+The "both" cost is ~the SUM of viewport-only + scissor-only, so the two are
+INDEPENDENTLY dirty-tracked - changing only one does NOT redundantly re-emit the
+other. The hypothesized coupling redundancy does not exist; the dynamic-state path
+is granular and optimal. Viewport is inherently ~3.5x costlier than scissor
+(float->fixed transform + 6 GRAS_CL_VPORT registers + guardband vs scissor's 2
+integer rects) - necessary a6xx HW programming, not reducible. This rules out the
+one potential win the dynbench finding suggested; lever #4 is definitively closed
+with no safe redundancy anywhere in the per-draw path. v7 unchanged.
