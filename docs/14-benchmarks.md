@@ -3157,3 +3157,27 @@ two drivers' opposite UBWC choices are each correct for their workload:
 Key methodological lesson: the rtbench microbench predicted the OPPOSITE of the
 3DMark real-title result for native content; real-title validation was decisive.
 Device candidates removed; /vendor and emulator drivers both at their optima.
+
+### System-driver 3DMark tick: does fp16 help/hurt native Wild Life? NEUTRAL - a613 native is bandwidth-bound
+
+The fp16 microbench paradox (gamebench +73% but gfxbench -17% under fp16) raised
+the question: does ULTRA-v6's forced fp16 help or hurt the real 3DMark score?
+Built two matched native candidates (fastmath + UBWC off; fp16 ON vs OFF),
+microbench-confirmed (FP16OFF gfxbench 72.9/gamebench 8.1; FP16ON gfxbench
+60.2/gamebench 14.0), and ran 3DMark Wild Life on each via bind-mount:
+
+| candidate            | Wild Life |
+|----------------------|-----------|
+| FP16 OFF (fastmath)  | 645       |
+| FP16 ON  (ULTRA-v6)  | 648       |
+
+3-point / 0.5% tie - fp16 is NEUTRAL on Wild Life. Neither the ALU-bound +73% gain
+nor the gfxbench-style regression appears. The reason: a613 native 3DMark is
+MEMORY-BANDWIDTH-BOUND, not ALU-bound - which also explains why UBWC-off matters
+(bandwidth), why wide-waves gave no 3DMark benefit, and why the selective-UBWC RT
+win did not transfer (Wild Life's bandwidth profile differs from the emulator RT
+pattern). Consequence: toggling fp16 gives the system driver NO 3DMark headroom;
+keeping it (ULTRA-v6) is correct - fp16 is 3DMark-neutral AND still helps the
+genuinely ALU-bound native content (heavy lighting/PBR games) at no 3DMark cost.
+No change to the system driver; ULTRA-v6 remains at its optimum. Candidates
+discarded; /vendor untouched (16342072).
