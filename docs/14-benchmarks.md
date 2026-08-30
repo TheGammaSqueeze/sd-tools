@@ -3081,3 +3081,37 @@ tree reverse-baked to opt-in (fastmath==2, fp16==1). NEXT: run 3DMark Wild Life 
 Wild Life Extreme on BASE vs SEL via bind-mount, compare (ULTRA-v6 reference WL
 648 / WLE 177); if SEL wins and renders clean, propose the /vendor flash for user
 approval.
+
+### Tick 2: 3DMark Wild Life BASE vs SEL - selective UBWC REGRESSES the system driver (do NOT ship)
+
+Ran 3DMark Wild Life (Performance, 2560x1440) on both matched candidates via
+bind-mount over /vendor (fully reversible, no flash), scores read from
+fm_local_results.db overallScore:
+
+| candidate                         | Wild Life | vs BASE |
+|-----------------------------------|-----------|---------|
+| BASE (UBWC off = ULTRA-v6 config)  | 648       | -       |
+| SEL (selective UBWC), run 1        | 609       | -6.0%   |
+| SEL (selective UBWC), run 2        | 609       | -6.0%   |
+
+BASE = 648 exactly matches the shipped ULTRA-v6 reference (648), validating the
+candidate faithfully replicates the current system driver. SEL REGRESSES to 609,
+reproducibly (609 twice), a consistent -6%.
+
+DECISIVE: selective UBWC does NOT help the system driver - it HURTS real native
+content by 6%, the opposite of the +41% rtbench microbench predicted. The reason:
+rtbench (multi-pass RT that samples its own output every pass) is not
+representative of 3DMark Wild Life, whose GPU time is dominated by texture
+sampling + mostly single-pass render-target writes, where a613 UBWC's
+compress/decompress overhead exceeds the bandwidth it saves - EXACTLY the "a613
+UBWC is a net loss in real titles" finding that made ULTRA-v6 force UBWC off in
+the first place. Even selective UBWC (UBWC only on the RTs) loses because the RT
+UBWC overhead is not recouped in Wild Life's access pattern.
+
+CONCLUSION: the system driver ULTRA-v6 (UBWC OFF) is already optimal for native
+content. Selective UBWC is NOT applied to /vendor - it would ship a 6% 3DMark
+regression. No flash. System driver untouched (16342072). Key lesson: the rtbench
+microbench MISLED here; 3DMark real-title validation was essential and overrode
+it. (This does NOT affect the emulator driver: emulation IS the rtbench-like
+render-to-texture pattern, where selective UBWC genuinely wins - v7 stays shipped.)
+Candidates _sysdrv_native_{base,sel}.so discarded.
