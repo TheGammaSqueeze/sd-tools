@@ -2973,3 +2973,33 @@ Two findings closing loose ends:
    improvement on the uncompressed sampled subset with zero effect elsewhere -
    consistent with the full-suite regression sweep showing no downside. No action;
    both avenues confirmed closed. v7 stands as the correctness-safe optimum.
+
+### Cross-over finding: selective UBWC also improves the SYSTEM driver (ULTRA-v6) - +42% rtbench, no sampling loss
+
+User asked whether the system /vendor driver was optimized too. The loop was
+scoped to the emulator driver (directive: never touch /vendor), but the
+selective-UBWC insight is workload-general, so A/B'd it on the NATIVE config
+(fp16 selective ON + fastmath, the ULTRA-v6 setting) via bind-mount microbench
+(no flash), device a28c0e0e @1010:
+
+| config                         | texbench | rtbench | gfxbench | gamebench |
+|--------------------------------|----------|---------|----------|-----------|
+| UBWC OFF (current ULTRA-v6)     | 1.48     | 5687    | 60.1     | 14.0      |
+| SELECTIVE UBWC (on RT, off samp)| 1.48     | 8060    | 60.1     | 14.0      |
+| UBWC fully ON                   | 0.70     | 8086    | 60.2     | 14.0      |
+
+Selective UBWC is the best of both for native content: keeps full texture-
+sampling speed (1.48 = UBWC-off level, the 3DMark-heavy case that drove the
+blanket UBWC-off choice) AND recovers +42% render-target bandwidth (5687 -> 8060,
+matching fully-on), fp16 fragment ALU unchanged. Lossless (UBWC is a compression
+layout - cannot change pixels). So ULTRA-v6's blanket UBWC-OFF leaves real RT
+bandwidth on the table that selective UBWC reclaims with no sampling cost.
+
+STATUS: microbench-proven only. Shipping to the system driver needs (1) a baked
+ULTRA-v6 + selective-UBWC build, (2) native correctness validation (3DMark Wild
+Life / a native title - lossless so expected clean), and (3) a fastbootd /vendor
+FLASH, which the directive walls off and is an outward/hard-to-reverse action
+needing explicit user approval. NOT flashed. Flagged for the user's decision;
+would re-confirm on real native content before proposing the flash. The shipped
+EMULATOR driver (nofp16 v7) already has this win baked; this extends the same
+lossless lever to the native/system path pending approval.
