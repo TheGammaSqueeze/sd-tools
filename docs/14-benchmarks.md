@@ -1993,3 +1993,20 @@ and every surface), not a driver default. Not shipping it as a GAMMA lever. This
 last tick's finding: our texture sampling is already fast (we lead stock), and the only way to go
 faster is to sample less data (blur), not a codegen/sampler-efficiency win. Kept the texbench
 lodbias arg for future characterization. No driver change; device on ULTRA-v5 (16338864).
+
+## Periodic 3DMark validation of deployed v5 (4 ticks since last flash): stable, WL 650 / WLE 179
+
+Mandated periodic real-title validation of the shipped ULTRA-v5 driver (16338864), GPU pinned,
+both screenshot-verified rendering clean (no black textures, all surfaces textured):
+- Wild Life:         650 (3.89 fps)   [baseline 650, exact]
+- Wild Life Extreme: 179 (1.07 fps)   [baseline 179, exact]
+Shell suite also stable: gpubench 55.4, gamebench 14.0, gfxbench 60.2, vertbench 23.2, rtbench
+5508. The deployed driver is confirmed stable and correct across the 4 ticks since the last flash;
+no regression.
+
+Side probe (inconclusive): tried GAMMA_UBWC=1 on texbench and it measured slower (0.70 vs 1.46
+Gtex/s), but this is a CONFOUNDED result - texbench's source texture has undefined contents, so
+its UBWC compression state is invalid and sampling UBWC-flagged-but-uncompressed memory is not a
+valid measure of UBWC's effect on real (properly uploaded/compressed) textures. Noting it as
+inconclusive rather than a finding; a valid test would need a staging-buffer upload with a UBWC
+resolve, out of scope for the microbench. Device stays on ULTRA-v5.
