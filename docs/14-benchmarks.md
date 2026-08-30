@@ -3265,3 +3265,28 @@ These limits are correctness/hardware-driven - relaxing them produces INCORRECT
 vectorization (wrong addresses/alignment), not a lossless gain. Turnip already
 vectorizes memory ops maximally within a6xx constraints. No safe knob to relax;
 this bandwidth-relevant lever is at its safe maximum. No change; v7 baseline stands.
+
+### Bandwidth/latency lever: FS texture-prefetch limit relaxation (GAMMA_PREFETCH) - no microbench effect
+
+The a6xx FS texture-prefetch (loads textures before the shader runs to hide fetch
+latency) is capped at 2/3 prefetches in small shaders (<50 / <70 NIR instrs) by a
+heuristic the source itself calls "super crude" and "more conservative". Given the
+bandwidth/latency-bound workload, tried lifting the cap to the HW max (4) via an
+env-gated GAMMA_PREFETCH (precision-safe - prefetch is latency hiding, not a value
+change). A/B on the v7 config, device a28c0e0e:
+
+| bench      | baseline (2/3 cap) | GAMMA_PREFETCH (max 4) |
+|------------|--------------------|------------------------|
+| texbench   | 1.49               | 1.48                   |
+| gfxbench   | 72.9               | 73.1                   |
+| gamebench  | 8.1                | 8.1                    |
+| gamebench2 | 11.6               | 11.7                   |
+| rtbench    | 7793               | 7790                   |
+
+All flat/within noise. The microbench shaders sample only 1-2 textures with
+coords known at shader entry, so the cap of 2 already covers them - the heuristic
+never bites here. Real multi-texture SMALL shaders could in principle benefit, but
+those are rare (multi-texture material shaders are usually >70 instrs and already
+at max prefetch). No microbench improvement -> fails ship gate (a), not shippable.
+Kept GAMMA_PREFETCH as a default-off opt-in (harmless latency knob, like
+GAMMA_WIDE_WAVE) for any future real-content trial. v7 baseline unchanged.
