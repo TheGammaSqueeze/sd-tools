@@ -2592,3 +2592,31 @@ principle recover the texbench 2x without losing the rtbench 1.9x. Turnip's fdl
 layout heuristic already tries to balance this, but texbench's 2x shows sampled
 textures still pay UBWC decompression. Would need fdl-layout changes + GZ/MGS4
 validation; noted for a future dedicated investigation, not attempted this tick.
+
+### Safe-opt tick: selective UBWC (off for sample-only images) - PASSES microbench gate (texbench +2.1x, no regression)
+
+New lever from the UBWC on/off characterization: UBWC is lossless compression, so
+disabling it per-image cannot change rendered output - only bandwidth. Added
+GAMMA_UBWC_NO_SAMPLED in ubwc_possible() (tu_image.cc): return UBWC-not-possible
+for images that are ONLY sampled (SAMPLED set, no colour/depth/input/transient
+attachment, no storage) - the upload-once-sample-many game textures - while
+keeping UBWC for render targets (which carry an attachment bit, including
+render-to-texture feedback surfaces). Correctness-safe by construction.
+
+A/B on the nofp16 config (device a28c0e0e, GPU 1010):
+
+| bench      | baseline (UBWC all) | selective (off sample-only) |
+|------------|---------------------|-----------------------------|
+| rtbench    | 7756                | 7803 (preserved)            |
+| texbench   | 0.70                | 1.48 (+2.1x)                |
+| gfxbench   | 73.1                | 73.0 (flat)                 |
+| gamebench  | 8.1                 | 8.1                         |
+| gamebench2 | 11.6                | 11.6                        |
+
+Recovers the full texture-sampling 2x with NO regression on render-target
+bandwidth (rtbench) or anything else - exactly the "keep the rtbench 1.9x, regain
+the texbench 2x" outcome the previous tick predicted. Passes ship gate (a). This
+is the first genuine ship candidate in the rotation. NEXT: bake GAMMA_UBWC_NO_SAMPLED
+default-on into the nofp16 emulator config, GZ-validate (gate b - must render
+clean; lossless so expected) and MGS4 (gate c - no regression), then ship into
+GameNative + update the zip/README/docs if both pass.
