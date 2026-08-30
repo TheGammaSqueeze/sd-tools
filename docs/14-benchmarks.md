@@ -2359,3 +2359,23 @@ FINAL per-title recommendation for GameNative emulation on this GPU:
 Native /vendor system driver stays ULTRA-v6 (fp16 selective there is fine for native Android; the
 Fox-Engine failure is specific to DXVK-translated Fox Engine fragment shaders under forced fp16).
 Autonomous fp16-for-GZ loop concluded; cron stopped. Device left on the working nofp16 driver.
+
+## Safe-optimization loop tick: UBWC config untunable + Mesa is current (two levers ruled out)
+
+Started the safe (precision-preserving) optimization loop on the ubwc-nofp16 emulator baseline.
+- Lever #1 UBWC bank/tiling config (highest_bank_bit / bank_swizzle_levels / macrotile_mode,
+  tu_device.cc ~1830): NOT a safe perf knob. The comment states it "should match what the kernel
+  programs" - these are the DRAM bank-interleave / swizzle layout, so a mismatched value corrupts
+  UBWC-compressed surfaces (the exact black/garbage failure we avoid). The current a613 values
+  (fd_dev_info: highest_bank_bit 13, ubwc_swizzle 0x7, macrotile_mode 0) already render clean =
+  they match hardware = no tuning headroom. Ruled out.
+- Lever #2 Mesa main perf cherry-picks: fetched origin/main; only 11 freedreno commits since our
+  2026-08-27 base, all correctness fixes (D32S8 sparse, pipeline-library stitching, GS state) or
+  diagnostics (VSC-overflow logging, autotune logging, TU_DEBUG=gmem_warmup) plus the already-
+  shipped nir_opt_non_uniform. No new perf work to backport - we are current with upstream ir3/tu.
+
+Next lever to try: #5 sysmem-vs-GMEM for the nofp16 baseline - the baseline forces direct-to-sysmem
+(coherency + RT), which bypasses on-chip GMEM tiling; for a full-scene game like GZ, UBWC WITHOUT
+sysmem (keep GMEM tiling, no fp16) may be faster on the opaque main-scene pass while staying correct
+(no fp16). Build ubwc-nofp16-nosysmem, microbench (rtbench + gfxbench) and GZ-validate next tick.
+Device left on the working nofp16 driver; no stale binds.
