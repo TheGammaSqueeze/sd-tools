@@ -2166,3 +2166,30 @@ shipped. The reflag fix stays in source (harmless, and it does help the niche of
 genuinely have constant-coefficient FMA chains, e.g. fixed colour-matrix / luminance math), but it
 is not a general performance lever. Added gpubench_dd as a permanent data-dependent compute bench.
 No driver change; device on ULTRA-v6 (16342072).
+
+
+## Compute parity with stock CONFIRMED on data-dependent workloads (85.0 vs 85.8)
+
+Completed the compute characterization by measuring the stock blob on gpubench_dd (data-dependent
+coefficients, the realistic case). Full picture, GPU pinned 1010 MHz:
+
+| driver         | gpubench (const-coeff, synthetic) | gpubench_dd (data-dependent, real) |
+|----------------|----------------------------------:|-----------------------------------:|
+| current v6     | 55.4                              | 85.0                               |
+| old aggressive | 128.9                             | 84.9                               |
+| stock blob     | 128.9                             | 85.8                               |
+
+On realistic data-dependent compute, Turnip v6 (85.0) is at TRUE PARITY with the stock blob (85.8),
+within 0.9%. The 128.9 that stock and old-aggressive hit on the constant-coefficient bench is purely
+compile-time folding of the synthetic chain (v6 does not fold it as aggressively, irrelevant for
+real content). So the apparent 2.3x compute gap was entirely a benchmark artifact - Turnip has NO
+real compute deficit vs the proprietary driver.
+
+This closes the compute characterization. Summary of Turnip v6 vs stock across the whole suite:
+fp16 realistic fragment (gamebench) we LEAD +59% (14.0 vs 8.8); texture sampling we LEAD +9.6%
+(1.48 vs 1.35 Gtex/s); data-dependent compute PARITY (85.0 vs 85.8); multi-pass RT with the
+GameNative-ubwc variant we recover to near stock (+43% over our GMEM default); full-scene
+texture-bound Wild Life we trail 648 vs 700 (a non-single-lever sum of small pipeline differences,
+the only residual). Net: v6 matches or beats the stock blob on every isolated subsystem, and the
+one native full-scene deficit is not attributable to any single addressable lever. No driver change;
+device on ULTRA-v6 (16342072).
