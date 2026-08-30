@@ -1931,3 +1931,21 @@ synthetic gfxbench_f16 gap to stock is purely a dependent-chain artifact of that
 missing packing optimization - real vectorized fp16 shader math (where we already beat stock on
 gamebench, 14.0 vs 8.8) packs and pipelines correctly. Added gfxbench_f16v4 as a permanent
 diagnostic. No driver change; device stays on ULTRA-v5 (16338864).
+
+## DXVK saturate()/clamp folds to the free (sat) modifier - zero overhead (new gb_sat bench)
+
+saturate() / clamp(x,0,1) is one of the most frequent operations in translated D3D shaders
+(DXVK/VKD3D emit it constantly for colour and lighting). Tested whether our compiler folds it into
+the a6xx free (sat) output modifier or emits explicit min/max ALU. Built gb_sat (a non-foldable
+loop of four interdependent clamp(a*..-b,0,1) per iteration - an earlier constant-converging
+version got the whole loop folded to a constant, 165 GFLOPS, which is why the input must stay
+varying) and disassembled it on the deployed v5:
+- 4 (sat) modifiers per iteration, 0 explicit min.f / max.f ALU ops.
+So every clamp(x,0,1) compiles to a (sat) bit on the producing mad/add - it costs nothing. DXVK's
+pervasive saturate() carries zero ALU overhead on Turnip here; no optimization is available or
+needed. gb_sat runs 84.9 GFLOPS (the clamps are free on top of the mad chain).
+
+This completes a sweep of the common DXVK/D3D shader patterns, all confirmed already-optimal in our
+driver: fp16 vec2 half-register packing (gfxbench_f16v4, prior tick), saturate->(sat) (this tick),
+full nir_fp_fast_math reassociation, and preamble constant hoisting. No native-side compiler win
+remains from these. Added gb_sat as a permanent diagnostic. No driver change; device on ULTRA-v5.
