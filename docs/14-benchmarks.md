@@ -3051,3 +3051,33 @@ authority:
 Absent a new upstream freedreno perf commit or a user go-ahead on (i)/(ii), the
 loop remains in steady state: periodic upstream re-poll + integrity/regression
 guard. No new in-scope ship candidate exists.
+
+## SYSTEM DRIVER investigation (user-approved expansion, 2026-08-30) - selective UBWC + 3DMark
+
+User approved expanding the loop to the system /vendor driver with 3DMark as the
+native validation. Testing is done SAFELY via bind-mount (3DMark launches fresh
+and picks up the bound .so); no /vendor flash without explicit approval.
+
+### Tick 1: built two matched native-config candidates (isolate the UBWC delta)
+
+The current mesa tree is not the exact ULTRA-v6 source (its 128-wide-wave /
+dw_noubwc tuning are not env knobs here), so to isolate the selective-UBWC effect
+on real 3DMark, built TWO candidates from identical source differing ONLY in UBWC,
+both with the native config (baked: FMA-fastmath + selective fragment fp16; NO
+sysmem):
+- _sysdrv_native_base.so = UBWC OFF (replicates ULTRA-v6's UBWC behaviour)
+- _sysdrv_native_sel.so  = selective UBWC (on RT, off sample-only)
+
+Microbench sanity (baked, no env) confirms correct bakes + isolated delta:
+
+| candidate | texbench | rtbench | gfxbench(fp16) | gamebench(fp16) |
+|-----------|----------|---------|----------------|------------------|
+| BASE (UBWC off) | 1.48 | 5719 | 60.2 | 14.0 |
+| SEL (selective) | 1.48 | 8074 | 60.2 | 14.0 |
+
+fp16 confirmed on (gfxbench 60.2 / gamebench 14.0 = fp16 levels, not the 73/8.1
+nofp16 levels), only rtbench differs (+41%), texbench preserved. Bakes verified,
+tree reverse-baked to opt-in (fastmath==2, fp16==1). NEXT: run 3DMark Wild Life +
+Wild Life Extreme on BASE vs SEL via bind-mount, compare (ULTRA-v6 reference WL
+648 / WLE 177); if SEL wins and renders clean, propose the /vendor flash for user
+approval.
