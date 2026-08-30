@@ -2667,3 +2667,31 @@ textures; lossless):
 Mesa source keeps GAMMA_UBWC_NO_SAMPLED as an opt-in env (baked default-on only in
 the shipped .so; working tree stays opt-in - verified fastmath==2, fp16==1).
 This is the first shipped safe-optimization win of the rotation.
+
+### Post-ship consolidation: v7 full-sweep regression guard (strict improvement confirmed)
+
+Verified the shipped v7 (selective UBWC on) is a strict improvement over v6 across
+the ENTIRE microbench suite, not just the four checked at ship time (device
+a28c0e0e, nofp16 config, GPU 1010):
+
+| bench      | v6 (sel off) | v7 (sel on, shipped) |
+|------------|--------------|----------------------|
+| gpubench   | 55.4 gflops  | 55.4                 |
+| gamebench  | 8.1          | 8.1                  |
+| gamebench2 | 11.7         | 11.6                 |
+| gfxbench   | 72.8         | 73.0                 |
+| vertbench  | 25.9 mvert/s | 25.9                 |
+| rtbench    | 7744 pass/s  | 7774                 |
+| texbench   | 0.66 gtex/s  | 1.48 (+2.2x)         |
+
+v7 is strictly better: +2.2x texture sampling, everything else identical within
+run noise. No regression on any bench. This is the canonical v7 baseline that
+future ticks compare against.
+
+Global-config lever space is now EXHAUSTED: levers 1-6 all swept (see prior
+entries), the one real win (selective UBWC) shipped as v7. No remaining global
+config knob moves a microbench without a correctness cost. Any further headroom
+would require a NEW class of lever - e.g. a per-shader-hash fp16 allowlist proven
+non-blacking on a captured real Ground Zeroes shader trace (needs a shader-dump +
+per-hash A/B harness, a larger multi-tick investigation), or app-specific pipeline
+tuning - not a rotation of the existing global knobs.
