@@ -2490,3 +2490,30 @@ elided by the dirty-tracking + early-exit). No safe, correctness-preserving draw
 submission reduction to ship. drawbench + this floor decomposition are kept for
 any future targeted attempt (e.g. if a specific redundant descriptor rebind is
 ever identified in a real GameNative trace). Lever #4 exhausted (no safe win).
+
+### Safe-opt tick: lever #1 UBWC bank/tiling config - no microbench win, ruled out
+
+Added env-gated UNCONDITIONAL overrides in tu_device.cc (GAMMA_HBB /
+GAMMA_MACROTILE, logged to logcat and confirmed applying:
+"GammaOS UBWC override: highest_bank_bit=15 macrotile_mode=1"). These override
+the kernel/fallback UBWC layout (a613 default highest_bank_bit, macrotile_mode 0
+= 4-channel). A/B on the nofp16 config (device a28c0e0e, GPU 1010):
+
+| config                    | rtbench passes/s | gfxbench gflops |
+|---------------------------|------------------|-----------------|
+| default (kernel-matched)  | 7756             | 73.0            |
+| highest_bank_bit=14       | 7798             | -               |
+| highest_bank_bit=15       | 7766             | 72.8            |
+| macrotile_mode=1 (8ch)    | 7741             | 72.8            |
+| hbb=15 + macrotile=1      | 7766             | -               |
+
+All within a ~0.7% run-noise band (7741-7798); macrotile 8-channel is marginally
+WORSE. No bank/tiling config beats the default on either the UBWC RT proxy or
+gfxbench. rtbench's 512x512 target and gfxbench's access patterns simply do not
+benefit from a different bank layout at these sizes. The ship gate fails at step
+(a) (no microbench improvement) so no GZ-validation was warranted - and any
+deviation from the DRAM interleave the kernel actually programs risks corrupting
+real UBWC surfaces (the source comment warns of exactly this) for zero upside.
+The kernel-matched default is correct and as fast as anything. Lever #1 ruled
+out. Env overrides kept default-off (do not touch the baked baseline) for any
+future investigation. fp16 grep counts verified restored (fastmath==2, fp16==1).
