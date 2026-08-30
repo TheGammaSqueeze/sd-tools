@@ -2193,3 +2193,30 @@ texture-bound Wild Life we trail 648 vs 700 (a non-single-lever sum of small pip
 the only residual). Net: v6 matches or beats the stock blob on every isolated subsystem, and the
 one native full-scene deficit is not attributable to any single addressable lever. No driver change;
 device on ULTRA-v6 (16342072).
+
+## Fragment characterization vs stock: v6 dominates realistic shaders, trails only on synthetic raw-FMA
+
+Completed the fragment-side comparison vs the stock blob (parallel to the compute parity finding):
+
+| fragment bench          | v6   | stock | winner        |
+|-------------------------|-----:|------:|---------------|
+| gamebench (lighting)    | 14.0 |  8.8  | v6 +59%       |
+| gamebench2 (PBR)        | 21.5 | 11.7  | v6 +84%       |
+| gfxbench (raw FMA loop) | 60.2 | 77.9  | stock +29%    |
+
+On realistic fragment shaders (lighting / PBR, what real games run) v6 dominates by +59 to +84%
+via forced fp16. On the synthetic raw interleaved-FMA loop (gfxbench: a=a*b+c; b=b*c+d; ... with
+a,b,c,d cross-feeding) stock leads +29%. Investigated the gfxbench gap: v6 compiles it to MIXED
+precision (4 mad.f16 + 4 mad.f32, 0 stalls, wave128) - the 4 fp32 mads (half-rate) are the
+bottleneck. But this is STRUCTURAL, not a protection artifact: blanket fp16 (GAMMA_FP16_UNSAFE) gives
+the identical 60.1 (the interleaved chain's precision boundaries force some ops fp32 regardless), so
+the fp16 lever cannot close it. Stock's advantage there is raw fp32-FMA scheduling/occupancy on this
+dependent pattern.
+
+Conclusion: the fp16 win is workload-shaped - it is huge on realistic data-dependent lighting/PBR
+(the dominant real-game fragment workload) and neutral on raw interleaved-FMA loops. Since real games
+are lighting/texture-bound, not pure-FMA-bound, v6's real fragment performance leads stock; the
+gfxbench deficit is synthetic and not addressable via fp16. This mirrors the compute finding (parity
+on realistic data-dependent work): across every subsystem, Turnip v6 matches or leads stock on
+realistic workloads, with only synthetic microbench edge-cases and full-scene texture-bound Wild Life
+as non-actionable residuals. No driver change; device on ULTRA-v6 (16342072).
