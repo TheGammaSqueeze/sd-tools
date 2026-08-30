@@ -3003,3 +3003,28 @@ needing explicit user approval. NOT flashed. Flagged for the user's decision;
 would re-confirm on real native content before proposing the flash. The shipped
 EMULATOR driver (nofp16 v7) already has this win baked; this extends the same
 lossless lever to the native/system path pending approval.
+
+### System-driver selective-UBWC win holds at native resolutions (+44-45%)
+
+Follow-up to strengthen the system-driver finding before any /vendor flash
+decision. The prior +42% was at rtbench 512; native content (3DMark, native
+games) renders at panel resolution. Swept rtbench resolution, native fp16 config,
+UBWC-off (current ULTRA-v6) vs selective UBWC (bind-mount only, no flash):
+
+| rtbench size | UBWC off | selective | gain |
+|--------------|----------|-----------|------|
+| 512          | 5710     | 8081      | +42% |
+| 720          | 2856     | 4146      | +45% |
+| 1080         | 1293     | 1858      | +44% |
+| 1280         | 911      | 1320      | +45% |
+
+Resolution-robust: +42-45% RT bandwidth across the full range, slightly LARGER at
+native panel resolutions (720/1080) than at 512, with texture-sampling speed fully
+preserved (texbench 1.48 unchanged, established prior). So ULTRA-v6's blanket
+UBWC-OFF costs native content ~44% of its render-target bandwidth that selective
+UBWC reclaims losslessly. Strong, consistent evidence.
+
+STILL microbench-only, NOT flashed. Shipping to /vendor remains gated on: a baked
+ULTRA-v6 + selective-UBWC build, native correctness re-confirmation (3DMark / a
+native title), and an explicit user-approved fastbootd flash. System driver
+untouched (16342072). Awaiting user go-ahead before building/flashing that path.
