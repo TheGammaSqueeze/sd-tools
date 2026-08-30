@@ -2305,3 +2305,29 @@ to ubwc-nofp16. Follow-up worth doing later: harden the selective fp16 keep-set 
 Fox-Engine-style texcoord path (e.g. coords arriving via UBO/descriptor-indexed loads or a compute
 feeder), which would let fp16 stay on safely for more titles. Native system driver unchanged
 (ULTRA-v6); this is a GameNative-imported variant.
+
+## fp16 black textures on MGS V Ground Zeroes: value-precision in material shaders, NOT texcoords/fastmath
+
+Device-validated iteration (live GZ title-screen A/B via screencap; the title screen has a fully
+textured/shaded 3D character = a good black-texture detector). Reference on ubwc-nofp16 renders the
+character and background correctly. Two fp16 candidates BOTH still black the 3D character (UI text
+renders fine in all cases - it is untextured/unlit):
+- H1 keep-set + phi-source traversal (protect loop-carried texcoords): STILL BLACK.
+- fp16 with fastmath OFF (isolate fastmath NaN): STILL BLACK.
+Only fp16 fully OFF (ubwc-nofp16) renders GZ correctly. So the failure is NOT texture-coordinate
+precision (phi/keep-set does not fix it) and NOT a fastmath/NaN interaction (no-fastmath does not
+fix it) - it is fp16 VALUE precision in Fox Engine's per-pixel material/lighting math itself (the
+shaded character collapses to black in fp16 while flat UI text is fine). That is why the selective
+keep-set (which protects texcoord/depth/position feeders) cannot save it: the sensitive math is the
+lighting, not the coordinates, and protecting all of it would forfeit the fp16 win.
+
+Implication: there is no keep-set that makes blanket fragment fp16 safe on Fox Engine without losing
+the speedup. ubwc-nofp16 is the correct AND fastest-correct driver for GZ / Fox Engine; ubwc (fp16)
+stays the faster option only for fp16-tolerant engines (e.g. MGS4). The remaining narrow avenue is a
+CONSERVATIVE partial fp16 that additionally protects the precision-sensitive lighting operations -
+normalize / frsq / fsqrt / frcp / fexp2 / flog2 / fddx / fddy feeder chains (Fox Engine normalizes
+normals and light vectors; fp16 normalize denormalizes -> black lighting) - keeping fp16 only on the
+low-sensitivity colour/albedo math. If that renders GZ clean AND still beats nofp16, ship it; if not,
+nofp16 is optimal for Fox Engine and the per-title split (ubwc for fp16-tolerant, nofp16 for
+fp16-sensitive) is the final answer. Native system driver unchanged (ULTRA-v6). Device left on the
+working ubwc-nofp16 driver for GZ.
