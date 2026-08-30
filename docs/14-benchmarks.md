@@ -2220,3 +2220,19 @@ gfxbench deficit is synthetic and not addressable via fp16. This mirrors the com
 on realistic data-dependent work): across every subsystem, Turnip v6 matches or leads stock on
 realistic workloads, with only synthetic microbench edge-cases and full-scene texture-bound Wild Life
 as non-actionable residuals. No driver change; device on ULTRA-v6 (16342072).
+
+## gfxbench structural-fp32 fully explained (output phi) + periodic 3DMark validation (WL 650 / WLE 179)
+
+Closed the gfxbench mixed-precision question: blanket fp16 (GAMMA_FP16_UNSAFE) produces the SAME
+4 mad.f16 + 4 mad.f32 as selective, so the 4 fp32 mads are not a keep-set artifact. Root cause: the
+loop-carried values that feed the fp32 store_output (o=vec4(a,b,c,d)) are kept fp32 by
+nir_opt_phi_precision (the output is a 32-bit color), so the a/b chain stays fp32 while the c/d
+intermediate chain goes fp16 - exactly the 4+4 split. Forcing them fp16 would need render-target-
+format awareness (the target is R8G8B8A8 where fp16 output is plenty) and risks banding on real
+gradients, so it is not worth it for a synthetic-bench gain. gfxbench structural fp32 is closed.
+
+Periodic 3DMark validation of the deployed ULTRA-v6 (several ticks since last flash), GPU pinned,
+both screenshot-verified rendering clean (no black textures, all surfaces textured):
+- Wild Life:         650 (3.89 fps)   [baseline 650, exact]
+- Wild Life Extreme: 179 (1.07 fps)   [baseline 179, exact]
+Deployed v6 confirmed stable and correct - no drift. Device on ULTRA-v6 (16342072).
