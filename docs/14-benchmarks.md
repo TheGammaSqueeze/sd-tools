@@ -1772,3 +1772,30 @@ AdrenoTools driver like the sysmem/flushall variants. Deployed device driver sta
 GameNative-ubwc; for coherency-only issues use GameNative-sysmem. NOTE for a future tick: the
 compute gap (stock 128.9 vs 55.4) is the next big lever - our FASTMATH reassoc reaches parity
 only on pure FMA-chain patterns, not gpubench's compute shader; worth profiling why.
+
+## Compute gap profiled (stock 128.9 vs 55.4): latency-bound dependent FMA, wave-size lever inapplicable (negative)
+
+Chased the largest stock-vs-Turnip gap from last tick: gpubench compute 128.9 (stock) vs 55.4
+(ours), a 2.3x deficit. Findings:
+- gpubench is a DEPENDENT FMA chain (a = a*b+c four times per loop iter, each depends on the
+  prior). Explicit fma() vs a*b+c are identical (both 55.4) so instruction fusion is already
+  optimal; gpubench_precise 55.4 too, gpubench_dec 36.5 (different pattern).
+- ir3 disasm of the inner loop shows each mad.f32 carries (nop3): a 4-cycle result latency
+  between dependent mads (4 mad + nops = latency-bound, not throughput-bound). Stats:
+  "2 full regs, 16 max_waves, 0 double_threadsize, 1 loops".
+- Compute runs single-threadsize (wave64). Tried forcing wave128 for compute via a new
+  GAMMA_CS_WAVE128 lever (ir3_should_double_threadsize): NO effect, disasm still reports
+  0 double_threadsize. Reason: gpubench's workgroup is local_size_x=64, so the wave is clamped
+  to the 64-wide workgroup - a 128-wide wave would leave half its lanes idle. The driver is
+  already optimal here; the wave-size lever cannot apply to <=64-wide workgroups.
+- The fragment double-threadsize patch (our +1.7x fragment ALU win, 42->72 GFLOPS) is correctly
+  fragment-only (MESA_SHADER_FRAGMENT); a6xx compute wave sizing is workgroup-bound.
+
+Conclusion: the compute gap is dependent-FMA latency hiding / dispatch concurrency, NOT
+instruction selection, fusion, or wave size. The compute-round-robin dispatch already shipped in
+v5 addresses part of this (+5.7%); the residual is HLSQ/firmware workgroup-scheduling concurrency
+that the compiler does not control. Reverted the GAMMA_CS_WAVE128 lever (proven no-op on
+workgroup<=64, unverifiable elsewhere - kept source clean). No driver change; device stays on
+ULTRA-v5 (16338864). Recorded so future ticks do not re-chase wave-size for the compute gap.
+Note: real game content is largely fragment-bound where we lead (gamebench 14.0 vs stock 8.8);
+the compute deficit mainly touches DXVK/RPCS3 compute passes.
