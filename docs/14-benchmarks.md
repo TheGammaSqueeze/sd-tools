@@ -2069,3 +2069,22 @@ Broadened real-title validation of the shipped ULTRA-v6 beyond WL/WLE. Findings:
 Added vkdump as a permanent capability-probe tool. No driver change; device stays on ULTRA-v6. This
 confirms v6 exposes the full modern-Vulkan surface DXVK/VKD3D need; the tests it cannot run are
 blocked by genuine a613 hardware limits, not the driver.
+
+## Tiling / binning TU_DEBUG levers all neutral-to-negative (WL full-scene gap not lever-addressable)
+
+The remaining native deficit is full-scene Wild Life (648 vs stock 700), already ruled out as
+texture (we lead stock), compiler, or UBWC. Tested the untried tiling/binning TU_DEBUG levers on
+the deployed v6 via the rtbench GMEM/tiled proxy (env reaches shell benches), 512x512:
+- default:                 5731 passes/s
+- forcecb (force concurrent binning):     5652  (-1.4%)
+- rast_order (rasterization-ordered):      2933  (-49%, serializes; a correctness debug flag, never
+  a perf lever)
+- noconcurrentresolves:    5673  (-1.0%)
+- nobinmerging:            5658  (-1.3%)
+Every tiling lever is neutral-to-negative: Turnip's default heuristics (concurrent binning, bin
+merging, concurrent resolves) are already the optimal choice - forcing any of them on/off only
+costs perf, and rast_order halves it. So the tiling/binning path is already optimal and the WL
+full-scene gap is NOT addressable via the exposed levers; it remains a sum of small pipeline
+differences vs the proprietary blob, not a single fixable knob. (rtbench is a small-bin proxy, but
+its verdict is consistent and decisive; a full-scene test would need a 3DMark flash, unjustified
+given all four levers are negative on the proxy.) No driver change; device on ULTRA-v6 (16342072).
