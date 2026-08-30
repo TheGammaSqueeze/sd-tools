@@ -11,19 +11,34 @@ SG4250P, stock clock 1010 MHz) and documented in `docs/14-benchmarks.md`.
 |-----|-------|-------|
 | `GammaOS-Turnip-Adreno613-ULTRA-v6.adpkg.zip` | v5 + non-uniform-access lowering | **Recommended - the shipped GammaOS driver.** Everything in v5 (dw_noubwc VK1.3 + 128-wide waves + UBWC-off + FMA reassociation + selective forced fp16 + compute round-robin) plus the upstream `nir_opt_non_uniform_access` pass, which lowers non-uniform UBO/SSBO/texture/image access for DXVK/VKD3D and some native VK titles (dynamic descriptor indexing). Neutral on native content (3DMark WL 648 / WLE 177, unchanged, renders clean); helps translation-layer content with non-uniform resource access. |
 | `GammaOS-Turnip-Adreno613-ULTRA-v5.adpkg.zip` | selective fp16 + compute round-robin | **Superseded by v6.** Same as v6 without the non-uniform-access lowering. dw_noubwc + FMA reassociation + selective forced fp16 + round-robin compute dispatch. |
-| `GammaOS-Turnip-Adreno613-GameNative-ubwc-v1.adpkg.zip` | ULTRA-v6 + UBWC + sysmem | **For emulators - best for render-to-texture-heavy titles.** Re-enables UBWC framebuffer compression (lossless) plus direct-to-sysmem. Measured +43% on the multi-pass render-to-texture benchmark (5680 -> 8118 passes/s) that models DXVK/VKD3D/RPCS3 post-process and render-target chains (bloom/SSAO/tonemap, e.g. MGS4). UBWC costs 5-7% on native tiled titles (measured 3DMark: Wild Life 649 -> 603, Wild Life Extreme 178 -> 170) so it is emulator-only, not the shipped default. Correctness-safe (UBWC is lossless). |
-| `GammaOS-Turnip-Adreno613-GameNative-sysmem-v1.adpkg.zip` | ULTRA-v6 + sysmem | **For emulators - try this first.** Renders direct-to-sysmem (bypasses GMEM tiling), a coherency fix for DXVK/VKD3D/RPCS3 render-to-texture. Only ~2% slower than default on real titles. |
-| `GammaOS-Turnip-Adreno613-GameNative-flushall-v1.adpkg.zip` | ULTRA-v6 + flushall | **For emulators - fallback.** Stronger per-submit cache-flush workaround; use only if sysmem still corrupts (fixes some titles sysmem can't). Costs ~10% on real titles, so prefer sysmem. |
+| `GammaOS-Turnip-Adreno613-GameNative-ubwc-v1.adpkg.zip` | ULTRA-v6 + UBWC + sysmem | **RECOMMENDED for GameNative / Winlator emulation - import this one.** Device-validated on Metal Gear Solid 4 (via GameNative): renders clean, no black textures, and noticeably faster than the community Turnip A12-fix. Re-enables UBWC framebuffer compression (lossless) plus direct-to-sysmem. Measured +43% on the multi-pass render-to-texture benchmark (5680 -> 8118 passes/s) modelling DXVK/VKD3D/RPCS3 post-process and render-target chains (bloom/SSAO/tonemap). Import it into the emulator's graphics-driver picker; do NOT flash it as the system driver (UBWC+sysmem cost ~7% and more DRAM power on native content - the system driver stays ULTRA-v6). |
+| `GammaOS-Turnip-Adreno613-GameNative-sysmem-v1.adpkg.zip` | ULTRA-v6 + sysmem | **Emulator fallback.** Direct-to-sysmem coherency fix without UBWC. Try this if a specific title shows an artifact under the ubwc driver; ~2% slower than default on native, no UBWC. |
+| `GammaOS-Turnip-Adreno613-GameNative-flushall-v1.adpkg.zip` | ULTRA-v6 + flushall | **Emulator last-resort.** Stronger per-submit cache-flush (the same workaround the community A12-fix uses, but on newer Mesa + our compiler opts). Use only if both ubwc and sysmem still corrupt a title; costs ~10% on native. |
 | `GammaOS-Turnip-Adreno613-AGGRESSIVE-v1.adpkg.zip` | no fp16 | dw_noubwc + FMA reassociation, no forced fp16. 100% safe (no fp16 artifacts), ~10% slower than ULTRA on ALU-bound titles. |
 | `GammaOS-Turnip-Adreno613-v1.adpkg.zip` | dw_noubwc (strict) | multiview VK 1.3 + 128-wide fragment waves + UBWC-off. Closest to reference precision. |
 | `GammaOS-Turnip-Adreno613-ULTRA-v1.adpkg.zip` | blanket fp16 | **Superseded.** Forces fp16 on ALL fragment math including texture coordinates -> black textures on some content (e.g. MGS4). Use ULTRA-v6 (selective) instead. |
 | `GammaOS-Turnip-Adreno613-ULTRA-v3.adpkg.zip` | + pow-squaring | **DEPRECATED - do not use.** `pow()` repeated-squaring flickers / blacks textures (fp16 overflow to inf/NaN for bases >1). |
 
-**Use ULTRA-v6** (v5 + non-uniform-access lowering, driver 16342072) for general use - it
-is the shipped GammaOS driver. For emulators (GameNative/Winlator running DXVK/VKD3D/RPCS3, e.g. MGS4)
-use the GameNative-sysmem variant first (only ~2% slower than default); fall back to GameNative-flushall (~10% slower) only if sysmem still corrupts. The older blanket-fp16 ULTRA-v1/v2
-(16330280) and the pow-squaring ULTRA-v3 both cause black textures and are superseded.
-If you see any fp16 artifact even on v6, fall back to AGGRESSIVE (no fp16, ~10% slower).
+There are two roles here, do not mix them up:
+
+- **System driver (flashed to `/vendor`): ULTRA-v6** (driver 16342072). This is what native
+  Android games/apps and the UI use. It keeps UBWC off and GMEM tiling on for the best native
+  speed and battery. This is the shipped GammaOS default and should stay flashed.
+- **Emulator driver (imported into GameNative / Winlator): GameNative-ubwc-v6.** GameNative and
+  Winlator load their OWN driver via AdrenoTools and ignore the system driver, so DXVK/VKD3D/RPCS3
+  titles (e.g. MGS4) get the UBWC render-to-texture win only if you import ubwc into the emulator's
+  graphics-driver picker. **This is the current recommended driver for GameNative emulation** -
+  device-validated on MGS4. Fall back to GameNative-sysmem, then GameNative-flushall, only if a
+  specific title shows an artifact.
+
+Import note: GameNative parses driver `meta.json` with a comma-splitting key-value parser, so the
+`name`/`description` must be short and comma-free and the library must be named
+`libvulkan_freedreno.so` - the shipped GameNative-* zips are packaged that way (a comma in the meta
+crashes GameNative's driver dialog on import).
+
+The older blanket-fp16 ULTRA-v1/v2 (16330280) and the pow-squaring ULTRA-v3 both cause black
+textures and are superseded. If you see any fp16 artifact even on v6, fall back to AGGRESSIVE
+(no fp16, ~10% slower).
 
 ## What ULTRA does
 - **multiview forced -> Vulkan 1.3** (153 device extensions) instead of the stock
