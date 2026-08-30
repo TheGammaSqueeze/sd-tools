@@ -11,6 +11,32 @@
 > chronological research log; where earlier entries call the pow-squaring build "deployed",
 > that is superseded by this banner and the final rollback entry.
 
+> **GameNative emulator driver - safe-optimization loop FINAL STATE (2026-08-30).**
+> Separate from the system `/vendor` driver above, the recommended GameNative /
+> Winlator emulator driver is **"GammaOS ubwc nofp16 v7"** (baked config: UBWC +
+> sysmem + FMA-fastmath + compute-round-robin + nir_opt_non_uniform + selective
+> UBWC; forced fp16 OFF for Fox Engine correctness). SHIPPED win this cycle =
+> **selective UBWC** (UBWC on render targets, off for sample-only textures): a
+> lossless layout change giving **texbench +2.2x** (0.66 -> 1.48 gtex/s) with
+> rtbench preserved and every other bench flat, device-validated CLEAN on MGS V:
+> Ground Zeroes and MGS4. Artifacts:
+> gpu/turnip-selfbuilt/vulkan.turnip.gamenative_ubwc_nofp16.so +
+> GameNative-ubwc-nofp16-v1.adpkg.zip (md5 73b058a1...), installed in GameNative.
+>
+> All six safe levers are now conclusively closed with tool-substantiated evidence
+> (see the dated sections below): (1) UBWC bank/tiling config - all 3 knobs
+> (highest_bank_bit, macrotile_mode, bank_swizzle_levels) within noise; (2) Mesa
+> upstream - current, no new freedreno perf commits; (3) fragment wave/occupancy -
+> occbench shows the double-threadsize threshold has no productive flip (light
+> shaders already double, heavy ones regfile-bound); (4) draw/descriptor CPU -
+> drawbench + descbench show the path already optimal (descriptor bind cheaper
+> than push constants); (5) sysmem-vs-GMEM incl. emulator resolutions - flat; (6)
+> fragment fp16 - correctness-blocked (headroom is the unsafe region). Also ruled
+> out: vertex fp16 (~3%), NIR register-pressure sink (no effect). Microbench
+> toolkit built along the way: drawbench, occbench, descbench. The only renewable
+> lever is (2) upstream re-poll; ship gate stays (a) microbench + (b) GZ-clean +
+> (c) no-MGS4-regression.
+
 Goal: push GPU / CPU / MEMORY as high as possible while staying stable, measured
 against a stock-max baseline. Device runs GammaOS Next Lite (rooted). All runs
 use `scripts/bench/` with fan at max (`persist.gammaos.fan_mode=max`) and thermal
