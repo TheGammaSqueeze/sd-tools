@@ -2802,3 +2802,29 @@ Verified the shipped state end to end:
 No regression, integrity intact. v7 remains the shipped correctness-safe optimum;
 the safe-optimization lever space stays exhausted (lever #2 upstream re-poll is
 the only renewable source and had nothing new last check). No new ship candidate.
+
+### Safe-opt tick: lever #3 wave occupancy - CONCLUSIVELY closed via occbench (new tool)
+
+Built occbench (scripts/bench/src/occbench.c + occbench.frag): a high-register-
+pressure fragment bench (12 cross-dependent live accumulators) so regs_count is
+large enough to reach the double-threadsize decision window, which the low-
+pressure gamebench/gfxbench shaders never hit. Dumped the FS wavesize stats via
+IR3_SHADER_DEBUG=disasm across three pressure levels (v7 config):
+
+| shader                   | max_waves | double_threadsize | WIDE_WAVE flips? | perf     |
+|--------------------------|-----------|-------------------|------------------|----------|
+| gamebench (low pressure) | high      | already 1 @ base  | no (already on)  | flat     |
+| occbench6 (moderate, 5w) | 5         | 0 (both configs)  | NO               | 5.3=5.3  |
+| occbench (heavy, 2w)     | 2         | 0 (both configs)  | NO               | 1.6=1.6  |
+
+GAMMA_WIDE_WAVE (relax the non-fp16 double-threadsize threshold from
+reg_size_vec4/4 to /2) NEVER flips double_threadsize for these fragment shaders,
+and perf is identical every time. The reason: low-pressure shaders already get
+the doubled wavesize at the default /4, while moderate/high-pressure shaders are
+too register-heavy to double even under the relaxed /2 (doubling the threadsize
+doubles register demand and blows the regfile). Real heavy game fragment shaders
+sit at 2 max_waves - regfile-bound, impossible to double-thread regardless of the
+threshold. So the /4-vs-/2 occupancy threshold has no productive adjustment: the
+shaders that would want more ALU-per-wave are exactly the ones too heavy to widen.
+Lever #3 is CONCLUSIVELY closed (not merely parked); the X1-85-tuned default /4 is
+correct. occbench kept as a durable wave-occupancy tool.
