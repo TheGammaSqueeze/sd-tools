@@ -3190,3 +3190,15 @@ keeping it (ULTRA-v6) is correct - fp16 is 3DMark-neutral AND still helps the
 genuinely ALU-bound native content (heavy lighting/PBR games) at no 3DMark cost.
 No change to the system driver; ULTRA-v6 remains at its optimum. Candidates
 discarded; /vendor untouched (16342072).
+
+### Steady-state tick: upstream re-poll (2026-08-30, unchanged)
+
+Lever #2 (the only renewable source) re-polled: origin/main freedreno set
+unchanged - still 10 pending commits, newest f5f84133 (2026-08-28), no new ir3/
+vulkan perf. We remain current; nothing to backport. Both shipped drivers verified
+intact (emulator nofp16 v7 md5 73b058a1..., system ULTRA-v6 16342072 untouched,
+source opt-in). Both optimization spaces are comprehensively explored and at their
+optima (emulator: microbench+GZ/MGS4; system: 3DMark, bandwidth-ceiling). No new
+safe ship candidate exists. Loop remains in steady state pending a new upstream
+freedreno perf commit or a new user directive; next action is another periodic
+upstream re-poll + integrity guard.
