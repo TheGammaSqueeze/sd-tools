@@ -2641,3 +2641,29 @@ Gate status: (a) microbench PASS (texbench +2.1x, no regression), (b) GZ clean
 PASS. Remaining before ship: (c) MGS4 no-regression. Working nofp16 driver
 restored to the device (16341456); baked candidate staged at
 gpu/turnip-selfbuilt/_cand_selubwc_baked.so for the MGS4 gate + ship next tick.
+
+### SHIPPED: selective UBWC -> "GammaOS ubwc nofp16 v7" (all three gates pass)
+
+Gate (c) MGS4: swapped the baked candidate into GameNative, launched MGS4 (Guns
+of the Patriots - Master Collection). Title screen renders CLEAN - Old Snake fully
+textured and lit, title art present, FPS 146.8, no hang, no black textures
+(mgs4_selubwc_clean.png). No regression.
+
+All three ship gates now pass:
+- (a) microbench: texbench +2.1x (0.70 -> 1.48), rtbench preserved (7756 -> 7803),
+  gfxbench/gamebench flat.
+- (b) MGS V: Ground Zeroes: clean, pixel-equivalent to reference.
+- (c) MGS4: clean, FPS 146.8, no regression.
+
+Shipped as v7 (selective UBWC = UBWC on render targets, off for sample-only
+textures; lossless):
+- gpu/turnip-selfbuilt/vulkan.turnip.gamenative_ubwc_nofp16.so updated (16342240)
+  + versioned copy vulkan.turnip.gamenative_ubwc_nofp16_v7_selubwc.so.
+- gpu/turnip-dist/GammaOS-Turnip-Adreno613-GameNative-ubwc-nofp16-v1.adpkg.zip
+  rebuilt with comma-free "GammaOS ubwc nofp16 v7" meta.
+- README recommended-row updated.
+- Installed + selected in GameNative (slot "GammaOS ubwc nofp16 v6" dir keeps the
+  user's selection; meta name now "GammaOS ubwc nofp16 v7", binary 16342240).
+Mesa source keeps GAMMA_UBWC_NO_SAMPLED as an opt-in env (baked default-on only in
+the shipped .so; working tree stays opt-in - verified fastmath==2, fp16==1).
+This is the first shipped safe-optimization win of the rotation.
