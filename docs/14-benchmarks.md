@@ -2286,3 +2286,22 @@ Implication for the next lever: since neither coherency nor compute moved MGS4 m
 remaining GPU levers are fragment/bandwidth (UBWC bank/tiling config tuning) - or the bottleneck is
 Box64 CPU, in which case the GPU driver is already near-optimal for MGS4. Native system driver stays
 ULTRA-v6; these are all GameNative-imported variants.
+
+## GameNative-ubwc-nofp16 variant: fixes fp16 black textures (MGS V Ground Zeroes / Fox Engine)
+
+Real-title correctness finding from device A/B. MGS V: Ground Zeroes (Fox Engine, GPU-heavier than
+the CPU-bound MGS4) renders MOSTLY BLACK TEXTURES under the ubwc driver AND the ubwc-only driver -
+identical except for sysmem, so it is not a coherency issue. Isolated it by building ubwc with
+forced fp16 turned OFF (UBWC + sysmem kept): that RENDERS CLEAN on Ground Zeroes. So the culprit is
+the forced fragment fp16 - the selective keep-set (which protects texture-coordinate / depth feeder
+chains at fp32) misses some Fox Engine texture-coordinate path, so those UVs get demoted to fp16,
+lose precision and sample black. MGS4 did not hit this (simpler shaders, and it is CPU-bound so the
+GPU/fp16 is irrelevant there); Ground Zeroes exposes the gap.
+
+Shipped GameNative-ubwc-nofp16-v1 (UBWC + sysmem, no forced fp16, driver 16341456) as the alternative
+for fp16-sensitive titles - keeps the +43% render-to-texture UBWC win and coherency, drops only the
+fp16 fragment-ALU speedup. Guidance: try ubwc first (fastest); if a title shows black textures switch
+to ubwc-nofp16. Follow-up worth doing later: harden the selective fp16 keep-set to also protect the
+Fox-Engine-style texcoord path (e.g. coords arriving via UBO/descriptor-indexed loads or a compute
+feeder), which would let fp16 stay on safely for more titles. Native system driver unchanged
+(ULTRA-v6); this is a GameNative-imported variant.
