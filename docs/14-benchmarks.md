@@ -2331,3 +2331,31 @@ low-sensitivity colour/albedo math. If that renders GZ clean AND still beats nof
 nofp16 is optimal for Fox Engine and the per-title split (ubwc for fp16-tolerant, nofp16 for
 fp16-sensitive) is the final answer. Native system driver unchanged (ULTRA-v6). Device left on the
 working ubwc-nofp16 driver for GZ.
+
+## FINAL: nofp16 is optimal for Fox Engine (GZ); forced fp16 cannot be made safe there - conservative partial fp16 fails
+
+Third and decisive fp16 hypothesis tested on Ground Zeroes (live title-screen A/B): conservative
+PARTIAL fp16 that keeps fp32 for the precision-sensitive ops (frsq / fsqrt / frcp / fexp2 / flog2)
+and their feeder chains, leaving fp16 only on the low-sensitivity colour math. Result: GZ STILL
+renders black, AND the microbench regressed BELOW nofp16 - gamebench 7.2 vs nofp16 ~8 vs full-fp16
+14.0 - because lighting shaders are dense with those ops so the protection removed most of the fp16
+win and the residual fp16<->fp32 conversions cost more than pure fp32.
+
+So all three targeted protections fail: texcoord/phi keep-set (black), fp16 no-fastmath (black),
+transcendental/rsq protection (black + slower than nofp16). The fp16 black-texture failure in Fox
+Engine is broad value-precision loss across the whole per-pixel material/lighting pipeline, not any
+isolatable sub-chain; the only protection that would fix it is protecting essentially the entire
+fragment shader, which IS nofp16 (and, mixed, is slower than nofp16). CONCLUSION: there is no fp16
+configuration that renders Ground Zeroes correctly while beating ubwc-nofp16. nofp16 is optimal for
+Fox Engine.
+
+FINAL per-title recommendation for GameNative emulation on this GPU:
+- GammaOS ubwc-nofp16: RECOMMENDED default - renders every tested title correctly (incl. Fox Engine /
+  MGS V Ground Zeroes) with UBWC + sysmem; gives up only the fp16 fragment-ALU speedup, which is
+  small-to-nil on CPU-bound titles and unusable on fp16-sensitive ones anyway.
+- GammaOS ubwc (fp16): faster on fp16-TOLERANT, GPU-bound titles (fragment fp16 up to +75/+84% on
+  realistic lighting), but BLACKS textures on Fox Engine and similar engines - use only where it
+  renders clean.
+Native /vendor system driver stays ULTRA-v6 (fp16 selective there is fine for native Android; the
+Fox-Engine failure is specific to DXVK-translated Fox Engine fragment shaders under forced fp16).
+Autonomous fp16-for-GZ loop concluded; cron stopped. Device left on the working nofp16 driver.
