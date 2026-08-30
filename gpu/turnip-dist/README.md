@@ -31,12 +31,19 @@ There are two roles here, do not mix them up:
 
 - **System driver (flashed to `/vendor`): ULTRA-v6** (driver 16342072). This is what native
   Android games/apps and the UI use. It keeps UBWC off and GMEM tiling on for the best native
-  speed and battery. This is the shipped GammaOS default and should stay flashed.
-- **Emulator driver (imported into GameNative / Winlator): GameNative-ubwc-nofp16.** GameNative and
-  Winlator load their OWN driver via AdrenoTools and ignore the system driver, so import a GameNative
-  driver into the emulator's graphics-driver picker to get the UBWC render-to-texture win. **ubwc-nofp16
-  is the recommended default** - it renders every tested title correctly (MGS4 and MGS V: Ground
-  Zeroes) and keeps UBWC + sysmem. Use the fp16 ubwc build only on titles that tolerate forced fp16
+  speed and battery. UBWC-off is 3DMark-validated as optimal here: turning UBWC on (even
+  selectively, only on render targets) REGRESSES native content (Wild Life 648 -> 609, Wild Life
+  Extreme 176 -> 171), because a613 native rendering is memory-bandwidth-bound and UBWC's
+  compress/decompress overhead exceeds its saving. This is the shipped GammaOS default and should
+  stay flashed.
+- **Emulator driver (imported into GameNative / Winlator): GameNative-ubwc-nofp16 (v7).** GameNative
+  and Winlator load their OWN driver via AdrenoTools and ignore the system driver, so import a
+  GameNative driver into the emulator's graphics-driver picker to get the UBWC render-to-texture win.
+  **ubwc-nofp16 is the recommended default** - it renders every tested title correctly (MGS4 and MGS
+  V: Ground Zeroes) and keeps UBWC + sysmem. v7 adds SELECTIVE UBWC: UBWC stays on render targets
+  (the render-to-texture win the emulator relies on) but is turned off for sample-only textures, which
+  sample 2.1x faster uncompressed on the a613 - the opposite of native because the emulator's DXVK/
+  VKD3D workload IS render-to-texture-heavy where UBWC pays off. Use the fp16 ubwc build only on titles that tolerate forced fp16
   and are GPU-bound (extra fragment speed), and switch back to ubwc-nofp16 the moment a title shows
   black textures - forced fp16 blacks Fox Engine materials and cannot be made safe there (tested).
   Fall back to GameNative-sysmem, then GameNative-flushall, only if a title shows a coherency artifact.
