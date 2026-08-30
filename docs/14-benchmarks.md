@@ -2379,3 +2379,19 @@ Next lever to try: #5 sysmem-vs-GMEM for the nofp16 baseline - the baseline forc
 sysmem (keep GMEM tiling, no fp16) may be faster on the opaque main-scene pass while staying correct
 (no fp16). Build ubwc-nofp16-nosysmem, microbench (rtbench + gfxbench) and GZ-validate next tick.
 Device left on the working nofp16 driver; no stale binds.
+### Safe-opt tick: lever #5 sysmem-vs-GMEM (nofp16 baseline) - RULED OUT
+
+Tested whether the nofp16 GameNative baseline (which forces GAMMA_SYSMEM
+direct-to-sysmem) leaves perf on the table vs keeping GMEM tiling. Built ONE
+unbaked driver (all GAMMA_* env-gated) and A/B'd via env on the same .so,
+bind-mounted over /vendor/lib64/hw/vulkan.adreno.so, GPU pinned 1010:
+
+| config (UBWC+FASTMATH, no fp16) | rtbench passes/s | gfxbench gflops |
+|---------------------------------|------------------|-----------------|
+| SYSMEM on  (current baseline)   | 7797             | 72.9            |
+| SYSMEM off (GMEM tiling)        | 7759             | 72.9            |
+
+Sysmem-on is marginally FASTER on the RT microbench (+0.5%, within run noise)
+and identical on gfxbench. Turning sysmem off gives no gain and would forfeit
+the emulator RT/feedback-loop coherency the "A12 fix" drivers rely on. Baseline
+keeps sysmem on. Lever #5 ruled out - no ship candidate.
