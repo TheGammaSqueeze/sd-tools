@@ -1799,3 +1799,32 @@ workgroup<=64, unverifiable elsewhere - kept source clean). No driver change; de
 ULTRA-v5 (16338864). Recorded so future ticks do not re-chase wave-size for the compute gap.
 Note: real game content is largely fragment-bound where we lead (gamebench 14.0 vs stock 8.8);
 the compute deficit mainly touches DXVK/RPCS3 compute passes.
+
+## fp16 codegen audited (our packing/SFU already optimal) + periodic 3DMark validation of v5
+
+Audited the fp16 codegen gap (gfxbench_f16 85 vs stock 127) by disassembling the shaders,
+following up the compute-gap finding. Results:
+- gfxbench_f16's inner loop is a DEPENDENT mad.f16 chain (hr2.x feeds hr3.x ...), scalar with
+  (nop1)/(nop3) latency stalls. It CANNOT be rpt-packed into vec2 half-registers (rpt needs
+  independent consecutive-register ops with a uniform source pattern) - so the "vec2 fp16
+  packing" lever does not apply to this dependent microbench. The stock 127 edge is on the same
+  unpackable chain, i.e. hardware fp16 issue/conversion, not a compiler-addressable packing win.
+- wave128 (our fragment double-threadsize) vs wave64 (IR3_SHADER_DEBUG=thread64) is IDENTICAL on
+  gamebench (14.0), gfxbench (60.2) and gfxbench_f16 (85.3/85.2). So these fragment benches are
+  ALU-throughput-bound, not occupancy-bound - our double-threadsize is throughput-neutral here
+  (its win is on other, occupancy-bound shaders) and more waves would not help.
+- Transcendentals already run on the 2x-rate fp16 SFU: gb_exp disasm shows 16-bit frsq / fexp2 /
+  flog2 (fp16), not fp32. No missed fp16-SFU opportunity; gb_exp 12.5 is the fp16 SFU ceiling.
+- gamebench FRAG has 74 cat0 (nops) + 79 sstall: heavily texture/SFU-latency bound, yet we still
+  beat stock (14.0 vs 8.8) because forced fp16 halves the ALU work.
+
+Conclusion: our codegen (fusion, fp16 demotion, fp16 SFU, wave sizing) is already near-optimal;
+the residual synthetic-microbench gaps are hardware dependent-chain latency that does not reflect
+real content, where we lead (gamebench +59% vs stock). No compiler change is warranted from the
+microbench gaps; recorded so future ticks stop re-chasing them.
+
+Periodic 3DMark pass on the deployed v5 driver (2 ticks since last flash), GPU pinned, both
+screenshot-verified rendering clean (no black textures):
+- Wild Life:         649 (3.89 fps)   [was 650]
+- Wild Life Extreme: 178 (1.07 fps)   [was 179]
+Deployed ULTRA-v5 (16338864) confirmed stable and correct. Device left on the working driver.
