@@ -1853,3 +1853,28 @@ Also this tick: confirmed the transcendental benches (gb_exp 12.5 / gb_trig 9.8 
 are SFU-THROUGHPUT-bound, not occupancy-bound - wave64 (16 waves) == wave128 (8 waves) on all
 three (identical to the µs), so the 9 cat4 SFU ops per fragment saturate the SFU and more waves
 cannot help. Another hardware ceiling, not a compiler lever.
+
+## Compute fp16 (+124%, near stock) confirmed to BLACK-SCREEN WLE: opt-in only, never default (negative)
+
+Followed up the compute gap with the compute-fp16 lever, the single biggest remaining throughput
+lever. Measured GAMMA_FP16_COMPUTE on gpubench: 55.4 -> 124.0 GFLOPS (+124%), reaching the stock
+blob's 128.9 - i.e. compute fp16 fully closes the compute gap (the deficit was fp32 vs fp16 ALU
+rate, not scheduling). Compute address math is integer so fp16 does not touch it; the risk is
+value precision.
+
+Built ULTRA-v5 + baked blanket compute fp16 (fragment stays selective, driver 16338680), verified
+via bind-mount (gpubench 124.0 with no env, gamebench 14.0 unchanged - fragment path intact),
+flashed it, and ran WLE (which uses compute passes):
+- WLE renders FULLY BLACK (screenshot-verified: black frame, FPS counter still advancing at frame
+  962 - the compute pass executes but produces black output). Severe value-precision corruption,
+  not banding.
+This definitively confirms the historical note: blanket compute fp16 corrupts WLE. The corruption
+is in the computed VALUES (a lighting/luminance/depth compute pass whose fp16 result collapses to
+black), which a selective keep-set cannot fix without per-shader semantic knowledge (unlike
+fragment texcoords or vertex position, there is no generic "protect this output" rule for an
+arbitrary compute result). So compute fp16 cannot be made safe generically.
+
+Decision: compute fp16 stays OPT-IN (GAMMA_FP16_COMPUTE) and in the experimental
+GameNative-maxfp16 variant only, never a default. Native default remains ULTRA-v5 (16338864).
+Reflashed the device back to v5, verified booted on the working driver. Mesa source restored to
+opt-in. Recorded with a screenshot so this is not re-attempted as a default.
