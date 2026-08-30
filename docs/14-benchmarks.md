@@ -2828,3 +2828,25 @@ threshold. So the /4-vs-/2 occupancy threshold has no productive adjustment: the
 shaders that would want more ALU-per-wave are exactly the ones too heavy to widen.
 Lever #3 is CONCLUSIVELY closed (not merely parked); the X1-85-tuned default /4 is
 correct. occbench kept as a durable wave-occupancy tool.
+
+### Safe-opt tick: lever #4 descriptor-bind path (descbench) - already optimal, DXVK path cheaper than push constants
+
+drawbench (prior tick) only varied push constants; the actual DXVK/VKD3D per-draw
+hot path is descriptor-SET binding (they bind sets every draw). Built descbench
+(scripts/bench/src/descbench.c): same tiny-draw storm but each draw first binds a
+descriptor set (alternating two sets so descriptor state re-emits), a uniform-buffer
+set on the pipeline layout. v7 config, device a28c0e0e:
+
+| bench     | per-draw op                      | us_per_draw |
+|-----------|----------------------------------|-------------|
+| descbench | descriptor-set bind (DXVK path)  | 0.584-0.606 |
+| drawbench | push-constant update             | 0.711-0.726 |
+
+The descriptor-set bind per draw is CHEAPER (~0.59us) than a push-constant update
+(~0.72us): Turnip emits a small descriptor-state pointer rather than re-uploading
+constant payload into the ring. So the DXVK-representative descriptor path is not
+a CPU bottleneck - it is already efficient and well-optimized. This extends the
+earlier drawbench finding (recording path already dirty-tracked + early-exit) to
+the descriptor path: lever #4 has no safe CPU-side win, including the DXVK hot
+path. descbench kept as a durable per-draw-descriptor-cost tool. All six levers
+remain conclusively closed; v7 stands as the correctness-safe optimum.
