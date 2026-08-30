@@ -2267,3 +2267,22 @@ flush slightly below sysmem, as expected). Repackaged both zips (clean, 2 files 
 the README base labels to ULTRA-v6. All four GameNative variants (ubwc / sysmem / flushall +
 maxfp16-experimental) are now on the v6 base with the DXVK non-uniform pass. No native change;
 device on ULTRA-v6 (16342072).
+
+## GameNative iteration on the ubwc baseline (MGS4/RPCS3 device A/B)
+
+Started iterating on the ubwc-v6 driver as the GameNative baseline, using real MGS4 (RPCS3 under
+GameNative/Box64) A/B on device as ground truth (rtbench is only a proxy). Findings so far:
+- ubwc-only (UBWC on, sysmem OFF, GMEM tiling kept): MGS4 renders clean and FPS is the SAME as
+  ubwc (UBWC+sysmem). So MGS4 does not need the sysmem coherency workaround, and the render-to-
+  texture win comes purely from UBWC, not sysmem. The sysmem/coherency axis is saturated for this
+  title. Kept ubwc (with sysmem) as the recommended baseline since it is the safest across titles.
+- ubwc + compute fp16: MGS4/RPCS3 RENDERS CLEAN with forced compute fp16 (a notable correctness
+  result - the same lever black-screens 3DMark Wild Life Extreme), with only a miniscule FPS gain.
+  So MGS4 is not meaningfully GPU-compute-bound; its bottleneck is elsewhere (fragment/bandwidth or
+  Box64 CPU). Shipped as an opt-in per-title variant (GameNative-ubwc-cfp16-v1) for compute-heavy
+  emulation, clearly marked title-dependent.
+
+Implication for the next lever: since neither coherency nor compute moved MGS4 meaningfully, the
+remaining GPU levers are fragment/bandwidth (UBWC bank/tiling config tuning) - or the bottleneck is
+Box64 CPU, in which case the GPU driver is already near-optimal for MGS4. Native system driver stays
+ULTRA-v6; these are all GameNative-imported variants.
