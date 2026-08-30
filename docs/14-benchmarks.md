@@ -2517,3 +2517,48 @@ real UBWC surfaces (the source comment warns of exactly this) for zero upside.
 The kernel-matched default is correct and as fast as anything. Lever #1 ruled
 out. Env overrides kept default-off (do not touch the baked baseline) for any
 future investigation. fp16 grep counts verified restored (fastmath==2, fp16==1).
+
+### Safe-opt tick: lever #6 precision-safe partial fp16 - provably not viable (headroom == unsafe region)
+
+Instead of a speculative build, measured the ABSOLUTE fp16 microbench ceiling to
+bound what any GZ-clean confinement could ever capture (device a28c0e0e, nofp16
+config vs blanket fp16, microbench-only - fp16 blacks GZ and is never shipped):
+
+| bench      | nofp16 gflops | fp16 gflops | delta  |
+|------------|---------------|-------------|--------|
+| gamebench  | 8.1           | 14.0        | +73%   |
+| gamebench2 | 11.7          | 21.5        | +84%   |
+| gfxbench   | 72.9          | 60.2        | -17%   |
+
+Two decisive findings:
+1. The whole +73-84% fp16 headroom lives in the HEAVY FRAGMENT ALU (the material
+   / lighting math). Selective keep-set fp16 and blanket fp16 give IDENTICAL
+   numbers (14.0 / 21.5) and BOTH black GZ. Lever #6 proposes confining fp16 to
+   the final post-lighting colour output store - the opposite region, which
+   contains almost none of that ALU (the output is format-converted to unorm8 by
+   the fixed-function ROP regardless of shader precision). So any confinement
+   that AVOIDS the GZ blacking (keeps lighting math fp32) forfeits essentially
+   all the gain: the fast region and the precision-unsafe region are the SAME
+   region. There is no subset that is both meaningfully faster AND GZ-clean.
+2. fp16 is not even universally faster - gfxbench (bandwidth-bound) REGRESSES 17%
+   under fp16, so fp16 carries a real downside on non-ALU-bound real workloads.
+
+Lever #6 is provably not viable under the correctness directive. No build/GZ pass
+needed - the ceiling measurement closes it.
+
+### Safe-opt rotation summary - nofp16 baseline is at the correctness-safe optimum
+
+All six SAFE levers are now swept against "GammaOS ubwc nofp16 v6":
+- #1 UBWC bank/tiling config: within noise, kernel-matched default optimal (ruled out).
+- #2 Mesa main cherry-picks: no ir3 perf commits since base, we are current (exhausted).
+- #3 wave/occupancy (GAMMA_WIDE_WAVE): no microbench signal, parked opt-in-off.
+- #4 draw-submission CPU cost: path already dirty-tracked + early-exit, no safe win (exhausted).
+- #5 sysmem-vs-GMEM / flushall: sysmem-on baseline optimal, flushall-off already default (exhausted).
+- #6 partial fp16: the only real headroom, but inseparable from the GZ-blacking precision loss (not viable).
+Every precision-preserving knob lands within run noise of the current baseline.
+The one lever with real headroom (fp16, +73-84% on ALU) is a correctness tradeoff
+that is off the table by directive. Conclusion: the shipped nofp16 driver is at
+the practical correctness-safe optimum for this hardware; no further safe ship
+candidate is available from the current lever set. Future headroom would require
+a NEW lever (e.g. a per-shader-hash fp16 allowlist proven non-blacking on a real
+GZ trace, or app-specific pipeline tuning) rather than a global config knob.
