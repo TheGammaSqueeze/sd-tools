@@ -2088,3 +2088,25 @@ full-scene gap is NOT addressable via the exposed levers; it remains a sum of sm
 differences vs the proprietary blob, not a single fixable knob. (rtbench is a small-bin proxy, but
 its verdict is consistent and decisive; a full-scene test would need a 3DMark flash, unjustified
 given all four levers are negative on the proxy.) No driver change; device on ULTRA-v6 (16342072).
+
+## fp16 win generalizes to +73..+103% across realistic shaders; selective protection is free
+
+Broadened the fp16 characterization from one lighting bench to three distinct realistic fragment
+shaders (gamebench = lighting, gamebench2, gamebench_pm = PBR-style), and confirmed the selective
+protection carries no speed cost. Measured on the deployed v6 (fp16 baked) vs the aggressive
+(no-fp16) driver bind-mounted for the fp32 baseline, GPU pinned:
+
+| bench        | fp32 (aggressive) | fp16 (selective) | fp16 win |
+|--------------|------------------:|-----------------:|---------:|
+| gamebench    | 8.1               | 14.0             | +73%     |
+| gamebench2   | 10.6              | 21.5             | +103%    |
+| gamebench_pm | 8.3               | 16.8             | +102%    |
+
+So forced fp16 is a +73 to +103% win on realistic lighting/PBR fragment ALU - even larger on the
+gamebench2/gamebench_pm shaders than the original gamebench. And selective == blanket on all three
+(14.0/21.5/16.8 identical with GAMMA_FP16_UNSAFE), i.e. the texture-coordinate/depth safety
+protection costs ZERO on ALU-bound realistic content - it only forgoes the texcoord-fp16 speedup on
+texture-bound content (Wild Life), which is exactly the black-texture-avoiding tradeoff we want. This
+strengthens the case that ULTRA's selective fp16 is the correct default: near-100% wins on the
+fragment-ALU-heavy shaders real games run, with black-texture safety as pure upside. Added
+gamebench2 and gamebench_pm as permanent benches. No driver change; device on ULTRA-v6 (16342072).
