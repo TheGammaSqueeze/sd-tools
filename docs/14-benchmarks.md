@@ -2850,3 +2850,31 @@ earlier drawbench finding (recording path already dirty-tracked + early-exit) to
 the descriptor path: lever #4 has no safe CPU-side win, including the DXVK hot
 path. descbench kept as a durable per-draw-descriptor-cost tool. All six levers
 remain conclusively closed; v7 stands as the correctness-safe optimum.
+
+### Safe-opt tick: aggressive NIR sink (register-pressure reduction) - no effect, reverted
+
+The occbench finding (heavy fragment shaders regfile-bound to 2 max_waves)
+pointed at register pressure as the real limiter. Turnip's final NIR pass only
+sinks consts/undefs (nir_opt_sink, nir_move_const_undef). Tried an env-gated
+aggressive sink (GAMMA_SINK) adding nir_move_load_ubo | load_input |
+load_uniform | comparisons | copies - sinking defs closer to their uses shrinks
+live ranges and is precision-preserving (reorders WHEN a value is computed, not
+what). A/B on v7 config, device a28c0e0e:
+
+| metric              | base | GAMMA_SINK |
+|---------------------|------|------------|
+| occbench max_waves  | 2    | 2 (no change) |
+| occbench gflops     | 1.6  | 1.6        |
+| gamebench/gamebench2| 8.1/11.7 | 8.1/11.6 |
+| gfxbench            | 73.0 | 73.0       |
+| rtbench             | 7766 | 7788       |
+| texbench            | 1.47 | 1.48       |
+
+Zero effect on register pressure or perf on every bench. The occbench pressure is
+intrinsic (12 accumulators genuinely live across the whole loop - nothing to sink),
+and Turnip's ir3 backend already does pressure-aware scheduling, making a NIR-level
+load-sink redundant. So the regfile-bound limit on heavy shaders is not addressable
+by cheap scheduling changes - it is fundamental to the shaders' data flow. No ship
+candidate; source reverted to keep the tree minimal (unlike the other GAMMA_* env
+levers, this one has no value to preserve as an opt-in). Confirms exhaustion; v7
+stands. This closes the register-pressure/occupancy avenue that occbench opened.
