@@ -3249,3 +3249,19 @@ direct-sysmem? Tested rtbench (v7 UBWC+selective config), device a28c0e0e:
 Lever #5 is now definitively closed including this angle: sysmem is optimal for
 the emulator (free coherency), flushall is slower, GMEM-only is a coherency
 downgrade at no speed gain. Baseline v7 unchanged; both drivers remain at optima.
+
+### Bandwidth lever check: NIR load/store vectorization - already enabled + hardware-tuned, no safe headroom
+
+The bandwidth-bound finding suggested checking memory-transaction reduction:
+does Turnip vectorize loads/stores (combining adjacent memory ops cuts the number
+of transactions = less bandwidth, correctness-neutral)? It ALREADY does -
+ir3_nir.c:1006 runs nir_opt_load_store_vectorize with the ir3_nir_should_vectorize_mem
+callback (line 168). That callback is comprehensive and HARDWARE-CORRECT, not
+conservative tuning: it enforces alignment (align_mul >= byte_size, align_offset %
+byte_size == 0), the vec4 maximum (num_components <= 4, a hardware limit), the
+isam-lowering tradeoff (skip vectorizing load_ssbo that would otherwise lower to
+isam for the tex-cache benefit, unless isam.v is supported), and 8-bit exclusions.
+These limits are correctness/hardware-driven - relaxing them produces INCORRECT
+vectorization (wrong addresses/alignment), not a lossless gain. Turnip already
+vectorizes memory ops maximally within a6xx constraints. No safe knob to relax;
+this bandwidth-relevant lever is at its safe maximum. No change; v7 baseline stands.
