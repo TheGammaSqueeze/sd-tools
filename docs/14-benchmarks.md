@@ -2138,3 +2138,31 @@ the reflag fix in source (turnip-force-fp16.patch) as a correctness fix so any f
 rebuild retains the fragment reassoc. The shipped old aggressive.so already has it, and ULTRA-v6
 stays deployed (16342072). Priority next: crack the gpubench compute collapse (128.8) that old
 aggressive achieves and restore it for ULTRA - by far the largest unrealized lever found so far.
+
+## RESOLVED: the gpubench "128.8 compute lever" is a synthetic constant-fold, NOT real throughput
+
+Cracked the priority thread and it turned out to be a phantom. gpubench uses COMPILE-TIME CONSTANT
+coefficients (b=1.0000001, c=0.9999999), so the old aggressive.so's reassociation collapses the
+constant chain (a*K1+K2), reporting 128.9 GFLOPS while executing far fewer FLOPs - a benchmark
+artifact, not real compute throughput. Proved it with a new gpubench_dd bench identical to gpubench
+except the coefficients are LOADED FROM MEMORY (data[id^1], data[id^2]) so they cannot be
+constant-folded - the realistic case (DXVK/RPCS3/real compute have data-dependent coefficients):
+
+| driver          | gpubench (const coeff) | gpubench_dd (data-dependent) |
+|-----------------|-----------------------:|-----------------------------:|
+| current v6      | 55.4                   | 85.1                         |
+| old aggressive  | 128.9                  | 84.9                         |
+
+On data-dependent (real) compute the two drivers are IDENTICAL (85.1 vs 84.9, v6 fractionally
+ahead). The 128.9 vs 55.4 gap exists ONLY for the synthetic all-constant chain. So there is NO lost
+real compute lever: the deployed v6 is at full compute parity with old aggressive (and stock, which
+also just constant-folds the synthetic bench to 128.9) on realistic workloads. This retires the
+"+133% compute" thread as a measurement artifact.
+
+Corollary: last tick's reflag "win" (gfxbench 60->73) is the same phenomenon - gfxbench also uses
+constant coefficients, so the reassoc collapses its synthetic chain; it does not help data-dependent
+real shaders. That is why ULTRA-v7 (with reflag) benched identically to v6 and was correctly NOT
+shipped. The reflag fix stays in source (harmless, and it does help the niche of real shaders that
+genuinely have constant-coefficient FMA chains, e.g. fixed colour-matrix / luminance math), but it
+is not a general performance lever. Added gpubench_dd as a permanent data-dependent compute bench.
+No driver change; device on ULTRA-v6 (16342072).
