@@ -2620,3 +2620,24 @@ is the first genuine ship candidate in the rotation. NEXT: bake GAMMA_UBWC_NO_SA
 default-on into the nofp16 emulator config, GZ-validate (gate b - must render
 clean; lossless so expected) and MGS4 (gate c - no regression), then ship into
 GameNative + update the zip/README/docs if both pass.
+
+### Safe-opt tick: selective UBWC - GZ CORRECTNESS GATE (b) PASSES (clean, matches reference)
+
+Baked GAMMA_UBWC_NO_SAMPLED default-on into the full nofp16 emulator config
+(fastmath + UBWC + sysmem + compute-RR + selective-UBWC, fp16 OFF), reverse-baked
+the source back to opt-in (verified ir3_nir fastmath==2, fp16==1). Swapped the
+baked candidate (16342240) into GameNative's selected "GammaOS ubwc nofp16 v6"
+slot (chown u0_a97, chcon app_data_file c97) and launched MGS V: Ground Zeroes.
+
+After the driver-swap shader recompile, the title screen renders CLEAN: Snake (the
+3D character) fully textured and lit (skin/hair/jacket), helicopter-interior
+background textured and lit, title text present - NOT black. Pixel-equivalent to
+the clean reference gz_ref_nofp16.png (saved as gz_selubwc_clean.png). Confirms
+selective UBWC is lossless as designed (UBWC on/off cannot change rendered
+output). Title-screen FPS 7.1 vs reference 7.0 (static scene, not GPU-bound, so
+equivalent = no regression there).
+
+Gate status: (a) microbench PASS (texbench +2.1x, no regression), (b) GZ clean
+PASS. Remaining before ship: (c) MGS4 no-regression. Working nofp16 driver
+restored to the device (16341456); baked candidate staged at
+gpu/turnip-selfbuilt/_cand_selubwc_baked.so for the MGS4 gate + ship next tick.
